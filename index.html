@@ -396,11 +396,12 @@
           const activeConnections = connections.filter(conn => conn.status === 'open');
           const connectedPeers = activeConnections.length;
 
-          // Get peer addresses for tooltip
+          // Get peer addresses for tooltip and extract domain names
           const peerAddresses = activeConnections.map(conn => {
             const remoteAddr = conn.remoteAddr;
             if (remoteAddr) {
-              return remoteAddr.toString();
+              const addrString = remoteAddr.toString();
+              return this.extractDomainFromAddress(addrString);
             }
             return 'Unknown address';
           });
@@ -411,6 +412,37 @@
           console.warn('Could not get connection count:', error);
           this.updateNodeCount(0, []);
         }
+      }
+    }
+
+    extractDomainFromAddress(address) {
+      try {
+        // Handle different multiaddr formats
+        // Examples:
+        // /dns4/node-01.do-ams3.waku.test/tcp/8000/ws/p2p/16Uiu2...
+        // /ip4/127.0.0.1/tcp/60001/ws/p2p/16Uiu2...
+        // /dns/bootstrap.libp2p.io/tcp/443/wss/p2p/QmNnooDu7...
+
+        const parts = address.split('/');
+
+        // Look for dns4, dns6, or dns parts
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (parts[i] === 'dns4' || parts[i] === 'dns6' || parts[i] === 'dns') {
+            return parts[i + 1];
+          }
+        }
+
+        // If no domain found, look for IP address
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (parts[i] === 'ip4' || parts[i] === 'ip6') {
+            return parts[i + 1];
+          }
+        }
+
+        // Fallback: return the original address if we can't parse it
+        return address;
+      } catch (error) {
+        return address;
       }
     }
 

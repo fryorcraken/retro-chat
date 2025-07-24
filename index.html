@@ -73,6 +73,50 @@
     .node-count {
       color: #00ffff;
       font-size: 11px;
+      cursor: help;
+      position: relative;
+    }
+
+    .node-count .tooltip {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 5px;
+      background: #001100;
+      color: #00ff00;
+      padding: 8px 12px;
+      border: 1px solid #00ff00;
+      border-radius: 4px;
+      font-size: 10px;
+      white-space: nowrap;
+      max-width: 400px;
+      min-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      z-index: 1000;
+      transition: opacity 0.3s, visibility 0.3s;
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+    }
+
+    .node-count:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .tooltip-address {
+      display: block;
+      font-family: 'Share Tech Mono', monospace;
+      color: #00ffff;
+      margin-bottom: 2px;
+      white-space: normal;
+      word-break: break-all;
+      line-height: 1.2;
+    }
+
+    .tooltip-address:last-child {
+      margin-bottom: 0;
     }
 
     .sending-indicator {
@@ -204,7 +248,10 @@
     <input type="text" class="nickname-input" placeholder="Enter nickname..." value="Anonymous">
     <div class="status-group">
       <span class="status connecting" id="status">Connecting...</span>
-      <span class="node-count" id="nodeCount">Nodes: 0</span>
+      <span class="node-count" id="nodeCount">
+        Nodes: 0
+        <div class="tooltip" id="nodeTooltip">No connections</div>
+      </span>
       <span class="sending-indicator" id="sendingIndicator">⏳ Sending...</span>
     </div>
   </div>
@@ -264,6 +311,7 @@
       this.nicknameInput = document.querySelector('.nickname-input');
       this.status = document.getElementById('status');
       this.nodeCount = document.getElementById('nodeCount');
+      this.nodeTooltip = document.getElementById('nodeTooltip');
       this.sendingIndicator = document.getElementById('sendingIndicator');
     }
 
@@ -345,11 +393,23 @@
       if (this.node && this.node.libp2p && this.node.libp2p.getConnections) {
         try {
           const connections = this.node.libp2p.getConnections();
-          const connectedPeers = connections.filter(conn => conn.status === 'open').length;
-          this.updateNodeCount(connectedPeers);
+          const activeConnections = connections.filter(conn => conn.status === 'open');
+          const connectedPeers = activeConnections.length;
+
+          // Get peer addresses for tooltip
+          const peerAddresses = activeConnections.map(conn => {
+            const remoteAddr = conn.remoteAddr;
+            if (remoteAddr) {
+              return remoteAddr.toString();
+            }
+            return 'Unknown address';
+          });
+
+          this.updateNodeCount(connectedPeers, peerAddresses);
         } catch (error) {
           // Fallback if getConnections method doesn't exist or fails
           console.warn('Could not get connection count:', error);
+          this.updateNodeCount(0, []);
         }
       }
     }
@@ -359,8 +419,18 @@
       this.status.className = `status ${className}`;
     }
 
-    updateNodeCount(count) {
-      this.nodeCount.textContent = `Nodes: ${count}`;
+    updateNodeCount(count, addresses = []) {
+      const nodeCountSpan = this.nodeCount.firstChild;
+      nodeCountSpan.textContent = `Nodes: ${count}`;
+
+      // Update tooltip content
+      if (count === 0) {
+        this.nodeTooltip.textContent = 'No connections';
+      } else {
+        this.nodeTooltip.innerHTML = addresses
+          .map(addr => `<span class="tooltip-address">${this.escapeHtml(addr)}</span>`)
+          .join('');
+      }
     }
 
     showSendingIndicator() {

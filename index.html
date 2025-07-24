@@ -188,8 +188,19 @@
   <button class="send-button" id="sendButton" disabled>SEND</button>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/protobufjs@7.5.3/dist/protobuf.min.js"></script>
 <script type="module">
   import { createLightNode, createDecoder, createEncoder, waitForRemotePeer, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.33/bundle/index.js';
+
+  // Define protobuf schema
+  const protoSchema = `
+            syntax = "proto3";
+            message Chat2Message {
+                uint64 timestamp = 1;
+                string nick = 2;
+                bytes payload = 3;
+            }
+        `;
 
   class RetroIRC {
     constructor() {
@@ -199,10 +210,17 @@
       this.contentTopic = '/toy-chat/2/huilong/proto';
       this.nickname = 'Anonymous';
       this.messages = [];
+      this.Chat2Message = null;
 
+      this.initProtobuf();
       this.initElements();
       this.initEventListeners();
       this.initWaku();
+    }
+
+    initProtobuf() {
+      const root = window.protobuf.parse(protoSchema).root;
+      this.Chat2Message = root.lookupType('Chat2Message');
     }
 
     initElements() {
@@ -215,13 +233,28 @@
 
     initEventListeners() {
       this.sendButton.addEventListener('click', () => this.sendMessage());
-      this.messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') this.sendMessage();
+
+      // Handle Enter key for sending messages
+      this.messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          this.sendMessage();
+        }
       });
 
       this.nicknameInput.addEventListener('change', (e) => {
         this.nickname = e.target.value.trim() || 'Anonymous';
         this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
+      });
+
+      // Also handle Enter for nickname input
+      this.nicknameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.nickname = e.target.value.trim() || 'Anonymous';
+          this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
+          this.messageInput.focus(); // Focus back to message input
+        }
       });
     }
 
@@ -267,16 +300,19 @@
 
     async sendMessage() {
       const text = this.messageInput.value.trim();
-      if (!text || !this.node) return;
+      if (!text || !this.node || !this.Chat2Message) return;
 
       try {
+        // Create protobuf message
         const message = {
-          timestamp: Date.now(),
-          sender: this.nickname,
-          text: text
+          timestamp: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
+          nick: this.nickname,
+          payload: new TextEncoder().encode(text)
         };
 
-        const payload = new TextEncoder().encode(JSON.stringify(message));
+        // Encode with protobuf
+        const protoMessage = this.Chat2Message.create(message);
+        const payload = this.Chat2Message.encode(protoMessage).finish();
 
         await this.node.lightPush.send(this.encoder, { payload });
 
@@ -290,10 +326,16 @@
 
     handleIncomingMessage(wakuMessage) {
       try {
-        if (!wakuMessage.payload) return;
+        if (!wakuMessage.payload || !this.Chat2Message) return;
 
-        const payload = new TextDecoder().decode(wakuMessage.payload);
-        const message = JSON.parse(payload);
+        // Decode protobuf message
+        const decodedMessage = this.Chat2Message.decode(wakuMessage.payload);
+
+        const message = {
+          timestamp: Number(decodedMessage.timestamp) * 1000, // Convert to milliseconds
+          sender: decodedMessage.nick,
+          text: new TextDecoder().decode(decodedMessage.payload)
+        };
 
         this.addChatMessage(message);
 

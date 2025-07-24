@@ -190,7 +190,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.5.3/dist/protobuf.min.js"></script>
 <script type="module">
-  import { createLightNode, createDecoder, createEncoder, waitForRemotePeer, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-86d39d9.0/bundle/index.js';
+  import { createLightNode, waitForRemotePeer, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-86d39d9.0/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -272,8 +272,8 @@
         await waitForRemotePeer(this.node, [Protocols.LightPush, Protocols.Filter]);
 
         // Create encoder and decoder
-        this.encoder = createEncoder({ contentTopic: this.contentTopic });
-        this.decoder = createDecoder(this.contentTopic);
+        this.encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
+        this.decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
 
         // Subscribe to messages
         await this.node.filter.subscribe([this.decoder], (message) => {

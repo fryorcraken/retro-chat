@@ -41,7 +41,7 @@
     .user-info {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 15px;
     }
 
     .nickname-input {
@@ -58,9 +58,38 @@
       box-shadow: 0 0 5px #00ff00;
     }
 
+    .status-group {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
     .status {
       color: #ffff00;
       font-size: 12px;
+    }
+
+    .node-count {
+      color: #00ffff;
+      font-size: 11px;
+    }
+
+    .sending-indicator {
+      color: #ffff00;
+      font-size: 11px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .sending-indicator.active {
+      opacity: 1;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
 
     .chat-container {
@@ -173,7 +202,11 @@
   <div class="title">>>> RetroChat IRC v1.0 <<<</div>
   <div class="user-info">
     <input type="text" class="nickname-input" placeholder="Enter nickname..." value="Anonymous">
-    <span class="status connecting" id="status">Connecting...</span>
+    <div class="status-group">
+      <span class="status connecting" id="status">Connecting...</span>
+      <span class="node-count" id="nodeCount">Nodes: 0</span>
+      <span class="sending-indicator" id="sendingIndicator">⏳ Sending...</span>
+    </div>
   </div>
 </div>
 
@@ -211,6 +244,7 @@
       this.nickname = 'Anonymous';
       this.messages = [];
       this.Chat2Message = null;
+      this.nodeCount = 0;
 
       this.initProtobuf();
       this.initElements();
@@ -229,6 +263,8 @@
       this.sendButton = document.getElementById('sendButton');
       this.nicknameInput = document.querySelector('.nickname-input');
       this.status = document.getElementById('status');
+      this.nodeCount = document.getElementById('nodeCount');
+      this.sendingIndicator = document.getElementById('sendingIndicator');
     }
 
     initEventListeners() {
@@ -261,6 +297,7 @@
     async initWaku() {
       try {
         this.updateStatus('Connecting...', 'connecting');
+        this.updateNodeCount(0);
 
         // Create Waku node
         this.node = await createLightNode({ defaultBootstrap: true });
@@ -284,6 +321,9 @@
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 
+        // Start monitoring node connections
+        this.startNodeCountMonitoring();
+
         this.addSystemMessage('Connected to Waku network! You can now chat.');
 
       } catch (error) {
@@ -293,14 +333,55 @@
       }
     }
 
+    startNodeCountMonitoring() {
+      // Update node count immediately and then every 5 seconds
+      this.updateNodeCountFromWaku();
+      setInterval(() => {
+        this.updateNodeCountFromWaku();
+      }, 5000);
+    }
+
+    async updateNodeCountFromWaku() {
+      if (this.node && this.node.libp2p && this.node.libp2p.getConnections) {
+        try {
+          const connections = this.node.libp2p.getConnections();
+          const connectedPeers = connections.filter(conn => conn.status === 'open').length;
+          this.updateNodeCount(connectedPeers);
+        } catch (error) {
+          // Fallback if getConnections method doesn't exist or fails
+          console.warn('Could not get connection count:', error);
+        }
+      }
+    }
+
     updateStatus(text, className) {
       this.status.textContent = text;
       this.status.className = `status ${className}`;
     }
 
+    updateNodeCount(count) {
+      this.nodeCount.textContent = `Nodes: ${count}`;
+    }
+
+    showSendingIndicator() {
+      this.sendingIndicator.classList.add('active');
+    }
+
+    hideSendingIndicator() {
+      this.sendingIndicator.classList.remove('active');
+    }
+
     async sendMessage() {
       const text = this.messageInput.value.trim();
       if (!text || !this.node || !this.Chat2Message) return;
+
+      // Show sending indicator
+      this.showSendingIndicator();
+      this.messageInput.disabled = true;
+      this.sendButton.disabled = true;
+
+      // Clear input immediately
+      this.messageInput.value = '';
 
       try {
         // Create protobuf message
@@ -316,11 +397,17 @@
 
         await this.node.lightPush.send(this.encoder, { payload });
 
-        this.messageInput.value = '';
-
       } catch (error) {
         console.error('Failed to send message:', error);
         this.addSystemMessage(`Failed to send message: ${error.message}`);
+        // Restore the message on error
+        this.messageInput.value = text;
+      } finally {
+        // Hide sending indicator and re-enable input
+        this.hideSendingIndicator();
+        this.messageInput.disabled = false;
+        this.sendButton.disabled = false;
+        this.messageInput.focus();
       }
     }
 

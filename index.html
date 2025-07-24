@@ -119,23 +119,6 @@
       margin-bottom: 0;
     }
 
-    .sending-indicator {
-      color: #ffff00;
-      font-size: 11px;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-
-    .sending-indicator.active {
-      opacity: 1;
-      animation: pulse 1s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
     .chat-container {
       flex: 1;
       overflow-y: auto;
@@ -146,6 +129,36 @@
     .message {
       margin-bottom: 5px;
       line-height: 1.4;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .message-content {
+      flex: 1;
+    }
+
+    .message-status {
+      font-size: 12px;
+      min-width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .message-status.sending {
+      color: #ffff00;
+      animation: spin 1s linear infinite;
+    }
+
+    .message-status.sent {
+      color: #00ff00;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
 
     .timestamp {
@@ -252,7 +265,6 @@
         Nodes: 0
         <div class="tooltip" id="nodeTooltip">No connections</div>
       </span>
-      <span class="sending-indicator" id="sendingIndicator">⏳ Sending...</span>
     </div>
   </div>
 </div>
@@ -292,6 +304,7 @@
       this.messages = [];
       this.Chat2Message = null;
       this.nodeCount = 0;
+      this.pendingMessages = new Set(); // Track pending messages
 
       this.initProtobuf();
       this.initElements();
@@ -312,7 +325,6 @@
       this.status = document.getElementById('status');
       this.nodeCount = document.getElementById('nodeCount');
       this.nodeTooltip = document.getElementById('nodeTooltip');
-      this.sendingIndicator = document.getElementById('sendingIndicator');
     }
 
     initEventListeners() {
@@ -465,32 +477,36 @@
       }
     }
 
-    showSendingIndicator() {
-      this.sendingIndicator.classList.add('active');
-    }
-
-    hideSendingIndicator() {
-      this.sendingIndicator.classList.remove('active');
-    }
-
     async sendMessage() {
       const text = this.messageInput.value.trim();
       if (!text || !this.node || !this.Chat2Message) return;
 
-      // Show sending indicator
-      this.showSendingIndicator();
+      // Disable input temporarily
       this.messageInput.disabled = true;
       this.sendButton.disabled = true;
 
       // Clear input immediately
+      const originalText = text;
       this.messageInput.value = '';
+
+      // Create a temporary message ID for tracking
+      const messageId = Date.now() + '-' + Math.random();
+
+      // Add the message to chat with sending status
+      const messageElement = this.addChatMessageWithStatus({
+        timestamp: Date.now(),
+        sender: this.nickname,
+        text: originalText,
+        messageId: messageId,
+        status: 'sending'
+      });
 
       try {
         // Create protobuf message
         const message = {
           timestamp: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
           nick: this.nickname,
-          payload: new TextEncoder().encode(text)
+          payload: new TextEncoder().encode(originalText)
         };
 
         // Encode with protobuf
@@ -499,14 +515,20 @@
 
         await this.node.lightPush.send(this.encoder, { payload });
 
+        // Update message status to sent
+        this.updateMessageStatus(messageId, 'sent');
+
       } catch (error) {
         console.error('Failed to send message:', error);
         this.addSystemMessage(`Failed to send message: ${error.message}`);
+        // Remove the failed message
+        if (messageElement && messageElement.parentNode) {
+          messageElement.parentNode.removeChild(messageElement);
+        }
         // Restore the message on error
-        this.messageInput.value = text;
+        this.messageInput.value = originalText;
       } finally {
-        // Hide sending indicator and re-enable input
-        this.hideSendingIndicator();
+        // Re-enable input
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
         this.messageInput.focus();
@@ -526,7 +548,10 @@
           text: new TextDecoder().decode(decodedMessage.payload)
         };
 
-        this.addChatMessage(message);
+        // Only add if it's not from ourselves (to avoid duplicates)
+        if (message.sender !== this.nickname) {
+          this.addChatMessage(message);
+        }
 
       } catch (error) {
         console.error('Failed to process incoming message:', error);
@@ -540,19 +565,61 @@
       const timestamp = new Date(message.timestamp).toLocaleTimeString();
 
       messageElement.innerHTML = `
-                    <span class="timestamp">[${timestamp}]</span>
-                    <span class="sender">&lt;${message.sender}&gt;</span>
-                    <span class="message-text"> ${this.escapeHtml(message.text)}</span>
-                `;
+        <div class="message-content">
+          <span class="timestamp">[${timestamp}]</span>
+          <span class="sender">&lt;${message.sender}&gt;</span>
+          <span class="message-text"> ${this.escapeHtml(message.text)}</span>
+        </div>
+      `;
 
       this.chatContainer.appendChild(messageElement);
       this.scrollToBottom();
+
+      return messageElement;
+    }
+
+    addChatMessageWithStatus(message) {
+      const messageElement = document.createElement('div');
+      messageElement.className = 'message';
+      messageElement.dataset.messageId = message.messageId;
+
+      const timestamp = new Date(message.timestamp).toLocaleTimeString();
+
+      const statusIcon = message.status === 'sending' ? '◐' : '✓';
+      const statusClass = message.status;
+
+      messageElement.innerHTML = `
+        <div class="message-content">
+          <span class="timestamp">[${timestamp}]</span>
+          <span class="sender">&lt;${message.sender}&gt;</span>
+          <span class="message-text"> ${this.escapeHtml(message.text)}</span>
+        </div>
+        <div class="message-status ${statusClass}">${statusIcon}</div>
+      `;
+
+      this.chatContainer.appendChild(messageElement);
+      this.scrollToBottom();
+
+      return messageElement;
+    }
+
+    updateMessageStatus(messageId, status) {
+      const messageElement = this.chatContainer.querySelector(`[data-message-id="${messageId}"]`);
+      if (messageElement) {
+        const statusElement = messageElement.querySelector('.message-status');
+        if (statusElement) {
+          statusElement.className = `message-status ${status}`;
+          statusElement.textContent = status === 'sent' ? '✓' : '◐';
+        }
+      }
     }
 
     addSystemMessage(text) {
       const messageElement = document.createElement('div');
       messageElement.className = 'message system-message';
-      messageElement.textContent = `[SYSTEM] ${text}`;
+      messageElement.innerHTML = `
+        <div class="message-content">[SYSTEM] ${text}</div>
+      `;
 
       this.chatContainer.appendChild(messageElement);
       this.scrollToBottom();

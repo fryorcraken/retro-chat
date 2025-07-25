@@ -138,43 +138,38 @@
     /* Mobile optimizations */
     @media (max-width: 768px) {
       .header {
-        padding: 8px 15px;
-        flex-wrap: wrap;
-        gap: 10px;
+        padding: 6px 15px;
+        min-height: auto;
       }
 
       .title {
-        font-size: 14px;
-        order: 1;
-        width: 100%;
-        text-align: center;
+        font-size: 12px;
+        flex: 1;
+        text-align: left;
       }
 
       .user-info {
-        order: 2;
-        width: 100%;
-        justify-content: space-between;
-        gap: 10px;
+        gap: 8px;
+        flex-shrink: 0;
       }
 
       .nickname-input {
-        flex: 1;
-        min-width: 0;
-        padding: 4px 8px;
-        font-size: 12px;
+        width: 80px;
+        padding: 3px 6px;
+        font-size: 11px;
       }
 
       .status-group {
         align-items: flex-end;
-        gap: 2px;
+        gap: 1px;
       }
 
       .status {
-        font-size: 10px;
+        font-size: 9px;
       }
 
       .node-count {
-        font-size: 9px;
+        font-size: 8px;
       }
 
       .chat-container {

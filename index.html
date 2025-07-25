@@ -17,10 +17,17 @@
       font-family: 'Share Tech Mono', monospace;
       background: #000;
       color: #00ff00;
-      height: 100vh;
+      min-height: 100vh;
+      height: 100%;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+
+    @supports (-webkit-touch-callout: none) {
+      body {
+        min-height: -webkit-fill-available;
+      }
     }
 
     .header {
@@ -124,6 +131,102 @@
       overflow-y: auto;
       padding: 10px 20px;
       background: #000;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 768px) {
+      .header {
+        padding: 8px 15px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .title {
+        font-size: 14px;
+        order: 1;
+        width: 100%;
+        text-align: center;
+      }
+
+      .user-info {
+        order: 2;
+        width: 100%;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .nickname-input {
+        flex: 1;
+        min-width: 0;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+
+      .status-group {
+        align-items: flex-end;
+        gap: 2px;
+      }
+
+      .status {
+        font-size: 10px;
+      }
+
+      .node-count {
+        font-size: 9px;
+      }
+
+      .chat-container {
+        padding: 8px 15px;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
+      .input-container {
+        padding: 10px 15px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        position: relative;
+        z-index: 1000;
+      }
+
+      .message-input {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 12px 15px;
+      }
+
+      .send-button {
+        padding: 12px 15px;
+        font-size: 14px;
+      }
+
+      .message {
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      .message-status {
+        font-size: 11px;
+        min-width: 14px;
+        height: 14px;
+      }
+    }
+
+    /* Very small screens */
+    @media (max-width: 480px) {
+      .input-container {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .send-button {
+        width: 100%;
+      }
+
+      .node-count .tooltip {
+        right: 0;
+        left: auto;
+        max-width: calc(100vw - 40px);
+      }
     }
 
     .message {

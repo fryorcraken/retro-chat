@@ -475,7 +475,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.5.3/dist/protobuf.min.js"></script>
 <script type="module">
-  import { createLightNode, waitForRemotePeer, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-86d39d9.0/bundle/index.js';
+  import { createLightNode, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-86d39d9.0/bundle/index.js';
   import { MessageChannel, MessageChannelEvent, encodeMessage, decodeMessage } from 'https://unpkg.com/@waku/sds@0.0.5/bundle/index.js';
 
   // Define protobuf schema
@@ -503,6 +503,7 @@
       this.messageChannel = null; // SDS Message Channel
       this.displayedMessages = new Set(); // Track displayed SDS message IDs to prevent dupes
       this.displayedContent = new Set(); // Track displayed content (timestamp+text) to prevent content dupes
+      this.isConnectedToStore = false; // Track store node connection
 
       this.initProtobuf();
       this.initElements();
@@ -583,6 +584,12 @@
 
     async loadMessageHistory() {
       try {
+        // Only proceed if we're connected to a store node
+        if (!this.isConnectedToStore) {
+          console.log('Not connected to store node, skipping message history loading');
+          return;
+        }
+
         console.log('Starting progressive message history loading...');
 
         const now = new Date();
@@ -873,6 +880,13 @@
 
         // Create Waku node
         this.node = await createLightNode({ defaultBootstrap: true });
+
+        // Listen for connection events using Waku event system
+        this.node.events.addEventListener("waku:connection", (event) => {
+          console.log('Waku connection event:', event.detail); // true if connected, false if disconnected
+          this.checkStoreConnection();
+        });
+
         await this.node.start();
 
         // Dial the specific node
@@ -886,37 +900,77 @@
 
         this.updateStatus('Waiting for peers...', 'connecting');
 
-        // Wait for connection to remote peers
-        await waitForRemotePeer(this.node, [Protocols.LightPush, Protocols.Filter]);
-
         // Create encoder and decoder
         this.encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
         this.decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
 
-        // Subscribe to messages
+        // Subscribe to messages (don't wait for specific protocol peers)
         await this.node.filter.subscribe([this.decoder], (message) => {
           this.handleIncomingWakuMessage(message);
         });
 
-        this.updateStatus('Loading history...', 'connecting');
-
-        // Query store for messages from the past 24 hours
-        await this.loadMessageHistory();
-
-        this.updateStatus('Connected', 'connected');
+        // Enable sending immediately
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 
+        this.updateStatus('Connected', 'connected');
+
         // Start monitoring node connections
         this.startNodeCountMonitoring();
+        this.startStoreMonitoring();
 
-        this.addSystemMessage('Connected to Waku network with SDS reliability! You can now chat.');
+        this.addSystemMessage('Connected to Waku network! Waiting for store nodes to load history...');
 
       } catch (error) {
         console.error('Failed to initialize Waku:', error);
         this.updateStatus('Connection failed', 'error');
         this.addSystemMessage(`Connection failed: ${error.message}`);
       }
+    }
+
+    async checkStoreConnection() {
+      if (!this.node) return;
+
+      try {
+        // Get all connected peers with their protocol support
+        const connectedPeers = await this.node.getConnectedPeers();
+
+        // Find peers that support the store protocol
+        const storePeers = connectedPeers.filter(peerInfo =>
+          peerInfo.protocols && peerInfo.protocols.includes('/vac/waku/store/2.0.0-beta4')
+        );
+
+        const hasStore = storePeers.length > 0;
+
+        console.log(`Connected peers: ${connectedPeers.length}, Store peers: ${storePeers.length}`);
+        if (storePeers.length > 0) {
+          console.log('Store peers:', storePeers.map(p => p.id.toString()));
+        }
+
+        // Track connection state changes
+        const wasConnectedToStore = this.isConnectedToStore;
+        this.isConnectedToStore = hasStore;
+
+        // Start store queries when we first connect to a store node
+        if (!wasConnectedToStore && hasStore) {
+          console.log('Connected to store node, starting message history loading...');
+          this.addSystemMessage('Store node connected, loading message history...');
+          await this.loadMessageHistory();
+        } else if (wasConnectedToStore && !hasStore) {
+          console.log('Lost connection to store nodes');
+          this.addSystemMessage('Lost connection to store nodes - history loading unavailable');
+        }
+
+      } catch (error) {
+        console.error('Failed to check store connection:', error);
+      }
+    }
+
+    startStoreMonitoring() {
+      // Check store connection every 5 seconds
+      setInterval(() => {
+        this.checkStoreConnection();
+      }, 5000);
     }
 
     startNodeCountMonitoring() {

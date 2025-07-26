@@ -277,6 +277,22 @@
       to { transform: rotate(360deg); }
     }
 
+    .message.historical-message {
+      opacity: 0.8;
+    }
+
+    .message.historical-message .timestamp {
+      color: #555;
+    }
+
+    .message.historical-message .sender {
+      color: #0088aa;
+    }
+
+    .message.historical-message .message-text {
+      color: #00aa00;
+    }
+
     .timestamp {
       color: #666;
     }
@@ -440,6 +456,80 @@
       return `${randomAdj}${randomNoun}${randomNum}`;
     }
 
+    async loadMessageHistory() {
+      try {
+        // Calculate time range for past 24 hours
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+        console.log(`Loading message history from ${twentyFourHoursAgo.toISOString()} to ${now.toISOString()}`);
+
+        let messageCount = 0;
+        const historicalMessages = [];
+
+        // Query the store for messages in the past 24 hours
+        for await (const messagesPromises of this.node.store.queryGenerator(
+          [this.decoder],
+          {
+            timeStart: twentyFourHoursAgo,
+            timeEnd: now
+          }
+        )) {
+          // Process each batch of messages
+          const messages = await Promise.all(messagesPromises);
+
+          for (const message of messages) {
+            if (message && message.payload) {
+              try {
+                // Decode as SDS message
+                const sdsMessage = decodeMessage(message.payload);
+
+                if (sdsMessage.content && sdsMessage.content.length > 0) {
+                  // Decode the chat message from SDS content
+                  const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
+
+                  const chatMessage = {
+                    timestamp: Number(decodedMessage.timestamp) * 1000,
+                    sender: decodedMessage.nick,
+                    text: new TextDecoder().decode(decodedMessage.payload),
+                    isHistorical: true
+                  };
+
+                  historicalMessages.push(chatMessage);
+                  messageCount++;
+                }
+              } catch (error) {
+                console.warn('Could not decode SDS message:', error);
+              }
+            }
+          }
+        }
+
+        // Sort messages by timestamp to ensure proper order
+        historicalMessages.sort((a, b) => a.timestamp - b.timestamp);
+
+        if (messageCount > 0) {
+          // Add separator for historical messages
+          this.addSystemMessage(`--- Loading ${messageCount} messages from the past 24 hours ---`);
+
+          // Display historical messages
+          for (const message of historicalMessages) {
+            this.addHistoricalChatMessage(message);
+          }
+
+          this.addSystemMessage(`--- End of message history ---`);
+          console.log(`Loaded ${messageCount} historical messages`);
+        } else {
+          this.addSystemMessage('No previous messages found in the past 24 hours');
+          console.log('No historical messages found');
+        }
+
+      } catch (error) {
+        console.error('Failed to load message history:', error);
+        this.addSystemMessage(`Failed to load message history: ${error.message}`);
+      }
+    }
+
     initProtobuf() {
       const root = window.protobuf.parse(protoSchema).root;
       this.Chat2Message = root.lookupType('Chat2Message');
@@ -558,6 +648,11 @@
         await this.node.filter.subscribe([this.decoder], (message) => {
           this.handleIncomingWakuMessage(message);
         });
+
+        this.updateStatus('Loading history...', 'connecting');
+
+        // Query store for messages from the past 24 hours
+        await this.loadMessageHistory();
 
         this.updateStatus('Connected', 'connected');
         this.messageInput.disabled = false;
@@ -746,23 +841,7 @@
         console.log('Waku: Processed SDS tasks');
 
       } catch (error) {
-        console.error('Failed to process incoming Waku message:', error);
-        // Fallback: try to decode as direct protobuf (for backward compatibility)
-        try {
-          const decodedMessage = this.Chat2Message.decode(wakuMessage.payload);
-          const message = {
-            timestamp: Number(decodedMessage.timestamp) * 1000,
-            sender: decodedMessage.nick,
-            text: new TextDecoder().decode(decodedMessage.payload)
-          };
-
-          if (message.sender !== this.nickname) {
-            this.addChatMessage(message);
-            console.log('Fallback: Added direct protobuf message');
-          }
-        } catch (fallbackError) {
-          console.error('Both SDS and fallback decoding failed:', fallbackError);
-        }
+        console.error('Failed to process incoming Waku message (SDS only):', error);
       }
     }
 
@@ -827,6 +906,26 @@
 
       this.chatContainer.appendChild(messageElement);
       this.scrollToBottom();
+
+      return messageElement;
+    }
+
+    addHistoricalChatMessage(message) {
+      const messageElement = document.createElement('div');
+      messageElement.className = 'message historical-message';
+
+      const timestamp = new Date(message.timestamp).toLocaleTimeString();
+      const date = new Date(message.timestamp).toLocaleDateString();
+
+      messageElement.innerHTML = `
+        <div class="message-content">
+          <span class="timestamp">[${date} ${timestamp}]</span>
+          <span class="sender">&lt;${message.sender}&gt;</span>
+          <span class="message-text"> ${this.escapeHtml(message.text)}</span>
+        </div>
+      `;
+
+      this.chatContainer.appendChild(messageElement);
 
       return messageElement;
     }

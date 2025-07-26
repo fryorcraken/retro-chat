@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RetroChat - IRC Style</title>
+  <title>RetroChat - IRC Style with SDS</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono:wght@400&display=swap');
 
@@ -247,6 +247,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 2px;
     }
 
     .message-status.sending {
@@ -256,6 +257,19 @@
 
     .message-status.sent {
       color: #00ff00;
+    }
+
+    .message-status.acknowledged {
+      color: #00ff00;
+    }
+
+    .tick {
+      display: inline-block;
+      font-size: 10px;
+    }
+
+    .tick.second {
+      margin-left: 1px;
     }
 
     @keyframes spin {
@@ -358,9 +372,9 @@
 </head>
 <body>
 <div class="header">
-  <div class="title">RetroChat</div>
+  <div class="title">RetroChat • SDS</div>
   <div class="user-info">
-    <input type="text" class="nickname-input" placeholder="Enter nickname..." value="Anonymous">
+    <input type="text" class="nickname-input" placeholder="Enter nickname...">
     <div class="status-group">
       <span class="status connecting" id="status">Connecting...</span>
       <span class="node-count" id="nodeCount">
@@ -373,7 +387,7 @@
 
 <div class="chat-container" id="chatContainer">
   <div class="message system-message">
-    [SYSTEM] Welcome to RetroChat! Connecting to Waku network...
+    [SYSTEM] Welcome to RetroChat with SDS reliability! Connecting to Waku network...
   </div>
 </div>
 
@@ -385,6 +399,7 @@
 <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.5.3/dist/protobuf.min.js"></script>
 <script type="module">
   import { createLightNode, waitForRemotePeer, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-86d39d9.0/bundle/index.js';
+  import { MessageChannel, MessageChannelEvent, encodeMessage, decodeMessage } from 'https://unpkg.com/@waku/sds@0.0.5/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -402,21 +417,83 @@
       this.decoder = null;
       this.encoder = null;
       this.contentTopic = '/toy-chat/2/huilong/proto';
-      this.nickname = 'Anonymous';
+      this.nickname = this.generateRandomNickname();
       this.messages = [];
       this.Chat2Message = null;
       this.nodeCount = 0;
-      this.pendingMessages = new Set(); // Track pending messages
+      this.pendingMessages = new Map(); // Track pending messages with SDS
+      this.messageChannel = null; // SDS Message Channel
 
       this.initProtobuf();
       this.initElements();
       this.initEventListeners();
+      this.initSDS();
       this.initWaku();
+    }
+
+    generateRandomNickname() {
+      const adjectives = ['Cool', 'Fast', 'Cyber', 'Neo', 'Dark', 'Retro', 'Quantum', 'Digital', 'Neon', 'Electric'];
+      const nouns = ['Hacker', 'User', 'Coder', 'Rider', 'Ghost', 'Agent', 'Phoenix', 'Ninja', 'Byte', 'Node'];
+      const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
+      const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+      const randomNum = Math.floor(Math.random() * 999) + 1;
+      return `${randomAdj}${randomNoun}${randomNum}`;
     }
 
     initProtobuf() {
       const root = window.protobuf.parse(protoSchema).root;
       this.Chat2Message = root.lookupType('Chat2Message');
+    }
+
+    initSDS() {
+      // Initialize SDS Message Channel
+      this.messageChannel = new MessageChannel('retro-chat');
+
+      // Listen for SDS events
+      this.messageChannel.addEventListener(MessageChannelEvent.MessageSent, (event) => {
+        console.log('SDS: Message sent', event.detail);
+      });
+
+      this.messageChannel.addEventListener(MessageChannelEvent.MessageDelivered, (event) => {
+        console.log('SDS: Message delivered', event.detail);
+      });
+
+      this.messageChannel.addEventListener(MessageChannelEvent.MessageReceived, (event) => {
+        console.log('SDS: Message received event triggered', event.detail);
+        // Process the received message immediately
+        this.handleSDSMessage(event.detail);
+      });
+
+      this.messageChannel.addEventListener(MessageChannelEvent.MessageAcknowledged, (event) => {
+        console.log('SDS: Message acknowledged', event.detail);
+        this.updateMessageStatusBySDSId(event.detail, 'acknowledged');
+      });
+
+      this.messageChannel.addEventListener(MessageChannelEvent.PartialAcknowledgement, (event) => {
+        console.log('SDS: Partial acknowledgement', event.detail);
+      });
+
+      this.messageChannel.addEventListener(MessageChannelEvent.MissedMessages, (event) => {
+        if (event.detail.length > 0) {
+          console.log('SDS: Missed messages detected', event.detail);
+          this.addSystemMessage(`SDS: Detected ${event.detail.length} missed messages`);
+        }
+      });
+
+      // Process SDS tasks regularly and handle message sweeping
+      setInterval(async () => {
+        try {
+          await this.messageChannel.processTasks();
+
+          // Sweep incoming buffer to check for deliverable messages
+          const missingMessages = this.messageChannel.sweepIncomingBuffer();
+          if (missingMessages.length > 0) {
+            console.log('SDS: Missing messages detected:', missingMessages.length);
+          }
+        } catch (error) {
+          console.error('Error processing SDS tasks:', error);
+        }
+      }, 1000);
     }
 
     initElements() {
@@ -427,6 +504,9 @@
       this.status = document.getElementById('status');
       this.nodeCount = document.getElementById('nodeCount');
       this.nodeTooltip = document.getElementById('nodeTooltip');
+
+      // Set the random nickname in the input field
+      this.nicknameInput.value = this.nickname;
     }
 
     initEventListeners() {
@@ -441,7 +521,7 @@
       });
 
       this.nicknameInput.addEventListener('change', (e) => {
-        this.nickname = e.target.value.trim() || 'Anonymous';
+        this.nickname = e.target.value.trim() || this.generateRandomNickname();
         this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
       });
 
@@ -449,7 +529,7 @@
       this.nicknameInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          this.nickname = e.target.value.trim() || 'Anonymous';
+          this.nickname = e.target.value.trim() || this.generateRandomNickname();
           this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
           this.messageInput.focus(); // Focus back to message input
         }
@@ -476,7 +556,7 @@
 
         // Subscribe to messages
         await this.node.filter.subscribe([this.decoder], (message) => {
-          this.handleIncomingMessage(message);
+          this.handleIncomingWakuMessage(message);
         });
 
         this.updateStatus('Connected', 'connected');
@@ -486,7 +566,7 @@
         // Start monitoring node connections
         this.startNodeCountMonitoring();
 
-        this.addSystemMessage('Connected to Waku network! You can now chat.');
+        this.addSystemMessage('Connected to Waku network with SDS reliability! You can now chat.');
 
       } catch (error) {
         console.error('Failed to initialize Waku:', error);
@@ -594,39 +674,47 @@
       // Create a temporary message ID for tracking
       const messageId = Date.now() + '-' + Math.random();
 
-      // Add the message to chat with sending status
-      const messageElement = this.addChatMessageWithStatus({
-        timestamp: Date.now(),
-        sender: this.nickname,
-        text: originalText,
-        messageId: messageId,
-        status: 'sending'
-      });
-
       try {
         // Create protobuf message
-        const message = {
+        const chatMessage = {
           timestamp: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
           nick: this.nickname,
           payload: new TextEncoder().encode(originalText)
         };
 
         // Encode with protobuf
-        const protoMessage = this.Chat2Message.create(message);
+        const protoMessage = this.Chat2Message.create(chatMessage);
         const payload = this.Chat2Message.encode(protoMessage).finish();
 
-        await this.node.lightPush.send(this.encoder, { payload });
+        // Add the message to chat with sending status
+        const messageElement = this.addChatMessageWithStatus({
+          timestamp: Date.now(),
+          sender: this.nickname,
+          text: originalText,
+          messageId: messageId,
+          status: 'sending'
+        });
 
-        // Update message status to sent
-        this.updateMessageStatus(messageId, 'sent');
+        // Send through SDS for reliability
+        await this.messageChannel.sendMessage(payload, async (sdsMessage) => {
+          try {
+            // Send via Waku LightPush
+            await this.node.lightPush.send(this.encoder, { payload: encodeMessage(sdsMessage) });
+
+            // Update message status to sent and track SDS message ID
+            this.updateMessageStatus(messageId, 'sent');
+            this.pendingMessages.set(sdsMessage.messageId, messageId);
+
+            return { success: true };
+          } catch (error) {
+            console.error('Failed to send via Waku:', error);
+            return { success: false };
+          }
+        });
 
       } catch (error) {
         console.error('Failed to send message:', error);
         this.addSystemMessage(`Failed to send message: ${error.message}`);
-        // Remove the failed message
-        if (messageElement && messageElement.parentNode) {
-          messageElement.parentNode.removeChild(messageElement);
-        }
         // Restore the message on error
         this.messageInput.value = originalText;
       } finally {
@@ -637,12 +725,59 @@
       }
     }
 
-    handleIncomingMessage(wakuMessage) {
+    async handleIncomingWakuMessage(wakuMessage) {
       try {
-        if (!wakuMessage.payload || !this.Chat2Message) return;
+        if (!wakuMessage.payload) {
+          console.log('Waku: Received message with no payload');
+          return;
+        }
 
-        // Decode protobuf message
-        const decodedMessage = this.Chat2Message.decode(wakuMessage.payload);
+        console.log('Waku: Received message, payload length:', wakuMessage.payload.length);
+
+        // Decode SDS message
+        const sdsMessage = decodeMessage(wakuMessage.payload);
+        console.log('Waku: Decoded SDS message:', sdsMessage);
+
+        // Process through SDS message channel
+        this.messageChannel.receiveMessage(sdsMessage);
+
+        // Process SDS tasks immediately to handle the received message
+        await this.messageChannel.processTasks();
+        console.log('Waku: Processed SDS tasks');
+
+      } catch (error) {
+        console.error('Failed to process incoming Waku message:', error);
+        // Fallback: try to decode as direct protobuf (for backward compatibility)
+        try {
+          const decodedMessage = this.Chat2Message.decode(wakuMessage.payload);
+          const message = {
+            timestamp: Number(decodedMessage.timestamp) * 1000,
+            sender: decodedMessage.nick,
+            text: new TextDecoder().decode(decodedMessage.payload)
+          };
+
+          if (message.sender !== this.nickname) {
+            this.addChatMessage(message);
+            console.log('Fallback: Added direct protobuf message');
+          }
+        } catch (fallbackError) {
+          console.error('Both SDS and fallback decoding failed:', fallbackError);
+        }
+      }
+    }
+
+    handleSDSMessage(sdsMessage) {
+      try {
+        if (!sdsMessage.content || sdsMessage.content.length === 0) {
+          // This is a sync message, ignore for chat display
+          console.log('SDS: Received sync message, ignoring for chat display');
+          return;
+        }
+
+        console.log('SDS: Processing message with content length:', sdsMessage.content.length);
+
+        // Decode the chat message from SDS content
+        const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
 
         const message = {
           timestamp: Number(decodedMessage.timestamp) * 1000, // Convert to milliseconds
@@ -650,13 +785,29 @@
           text: new TextDecoder().decode(decodedMessage.payload)
         };
 
+        console.log('SDS: Decoded message from', message.sender, ':', message.text);
+
         // Only add if it's not from ourselves (to avoid duplicates)
         if (message.sender !== this.nickname) {
           this.addChatMessage(message);
+          console.log('SDS: Added message to chat from', message.sender);
+        } else {
+          console.log('SDS: Ignoring own message');
         }
 
       } catch (error) {
-        console.error('Failed to process incoming message:', error);
+        console.error('Failed to process SDS message:', error);
+      }
+    }
+
+    updateMessageStatusBySDSId(sdsMessageId, status) {
+      const messageId = this.pendingMessages.get(sdsMessageId);
+      if (messageId) {
+        this.updateMessageStatus(messageId, status);
+        if (status === 'acknowledged') {
+          // Remove from pending messages once acknowledged
+          this.pendingMessages.delete(sdsMessageId);
+        }
       }
     }
 
@@ -687,7 +838,7 @@
 
       const timestamp = new Date(message.timestamp).toLocaleTimeString();
 
-      const statusIcon = message.status === 'sending' ? '◐' : '✓';
+      const statusIcon = this.getStatusIcon(message.status);
       const statusClass = message.status;
 
       messageElement.innerHTML = `
@@ -705,13 +856,26 @@
       return messageElement;
     }
 
+    getStatusIcon(status) {
+      switch (status) {
+        case 'sending':
+          return '◐';
+        case 'sent':
+          return '<span class="tick">✓</span>';
+        case 'acknowledged':
+          return '<span class="tick">✓</span><span class="tick second">✓</span>';
+        default:
+          return '◐';
+      }
+    }
+
     updateMessageStatus(messageId, status) {
       const messageElement = this.chatContainer.querySelector(`[data-message-id="${messageId}"]`);
       if (messageElement) {
         const statusElement = messageElement.querySelector('.message-status');
         if (statusElement) {
           statusElement.className = `message-status ${status}`;
-          statusElement.textContent = status === 'sent' ? '✓' : '◐';
+          statusElement.innerHTML = this.getStatusIcon(status);
         }
       }
     }

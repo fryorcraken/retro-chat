@@ -18,15 +18,30 @@
       background: #000;
       color: #00ff00;
       min-height: 100vh;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
       overflow: hidden;
+      position: relative;
     }
 
     @supports (-webkit-touch-callout: none) {
       body {
         min-height: -webkit-fill-available;
+        height: -webkit-fill-available;
+      }
+    }
+
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: relative;
+    }
+
+    @supports (-webkit-touch-callout: none) {
+      .app-container {
+        height: -webkit-fill-available;
       }
     }
 
@@ -178,13 +193,13 @@
 
       .chat-container {
         padding: 8px 15px;
-        padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); /* Account for fixed input + safe area */
+        padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); /* Account for input + safe area */
       }
 
       .input-container {
         padding: 10px 15px;
         padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-        position: fixed;
+        position: absolute;
         bottom: 0;
         left: 0;
         right: 0;
@@ -431,29 +446,31 @@
   </style>
 </head>
 <body>
-<div class="header">
-  <div class="title">RetroChat • SDS</div>
-  <div class="user-info">
-    <input type="text" class="nickname-input" placeholder="Enter nickname...">
-    <div class="status-group">
-      <span class="status connecting" id="status">Connecting...</span>
-      <span class="node-count" id="nodeCount">
-        Nodes: 0
-        <div class="tooltip" id="nodeTooltip">No connections</div>
-      </span>
+<div class="app-container">
+  <div class="header">
+    <div class="title">RetroChat • SDS</div>
+    <div class="user-info">
+      <input type="text" class="nickname-input" placeholder="Enter nickname...">
+      <div class="status-group">
+        <span class="status connecting" id="status">Connecting...</span>
+        <span class="node-count" id="nodeCount">
+          Nodes: 0
+          <div class="tooltip" id="nodeTooltip">No connections</div>
+        </span>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="chat-container" id="chatContainer">
-  <div class="message system-message">
-    [SYSTEM] Welcome to RetroChat with SDS reliability! Connecting to Waku network...
+  <div class="chat-container" id="chatContainer">
+    <div class="message system-message">
+      [SYSTEM] Welcome to RetroChat with SDS reliability! Connecting to Waku network...
+    </div>
   </div>
-</div>
 
-<div class="input-container">
-  <input type="text" class="message-input" id="messageInput" placeholder="Type your message..." disabled>
-  <button class="send-button" id="sendButton" disabled>SEND</button>
+  <div class="input-container">
+    <input type="text" class="message-input" id="messageInput" placeholder="Type your message..." disabled>
+    <button class="send-button" id="sendButton" disabled>SEND</button>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.5.3/dist/protobuf.min.js"></script>

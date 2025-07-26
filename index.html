@@ -523,58 +523,61 @@
 
     async retrieveMissedMessages(missedHistoryEntries) {
       try {
-        const missedMessages = [];
+        console.log(`Retrieving ${missedHistoryEntries.length} missed messages using hash-based queries`);
 
-        // Query store for each missed message
         for (const historyEntry of missedHistoryEntries) {
           const { messageId, retrievalHint } = historyEntry;
 
-          console.log(`Retrieving missed message: ${messageId}`);
+          console.log(`Retrieving missed message: ${messageId}${retrievalHint ? ' with hash' : ' without hash'}`);
 
-          // Query store using message hash if available
-          const messages = [];
-          for await (const messagesPromises of this.node.store.queryGenerator(
-            [this.decoder],
-            {
-              messageHashes: retrievalHint ? [retrievalHint] : undefined,
-              // If no retrieval hint, query recent messages
-              timeStart: retrievalHint ? undefined : new Date(Date.now() - 60 * 60 * 1000), // Last hour
-              timeEnd: retrievalHint ? undefined : new Date()
-            }
-          )) {
-            const resolvedMessages = await Promise.all(messagesPromises);
-            messages.push(...resolvedMessages.filter(m => m && m.payload));
-          }
+          let foundMessage = false;
 
-          // Find the specific missed message by ID
-          for (const message of messages) {
+          // Try hash-based query if retrieval hint is available
+          if (retrievalHint) {
             try {
-              const sdsMessage = decodeMessage(message.payload);
-              if (sdsMessage.messageId === messageId) {
-                missedMessages.push(sdsMessage);
-                break;
+              // Hash-based query - no time range
+              for await (const messagesPromises of this.node.store.queryGenerator(
+                [this.decoder],
+                {
+                  messageHashes: [retrievalHint]
+                }
+              )) {
+                const messages = await Promise.all(messagesPromises);
+
+                for (const message of messages) {
+                  if (message && message.payload) {
+                    try {
+                      const retrievedSdsMessage = decodeMessage(message.payload);
+                      if (retrievedSdsMessage.messageId === messageId) {
+                        console.log(`Successfully retrieved ${messageId} using hash query`);
+
+                        // Feed the retrieved message back to SDS
+                        this.messageChannel.receiveMessage(retrievedSdsMessage);
+                        foundMessage = true;
+                        break;
+                      }
+                    } catch (decodeError) {
+                      console.warn('Failed to decode retrieved message:', decodeError);
+                    }
+                  }
+                }
+
+                if (foundMessage) break;
               }
-            } catch (error) {
-              console.warn('Error decoding message during retrieval:', error);
+            } catch (hashQueryError) {
+              console.warn(`Hash query failed for ${messageId}:`, hashQueryError);
             }
           }
-        }
 
-        // Process retrieved messages
-        if (missedMessages.length > 0) {
-          this.addSystemMessage(`Retrieved ${missedMessages.length} of ${missedHistoryEntries.length} missed messages`);
-
-          // Sort by timestamp and process
-          missedMessages.sort((a, b) => (a.lamportTimestamp || 0) - (b.lamportTimestamp || 0));
-
-          for (const sdsMessage of missedMessages) {
-            // Process through SDS to update internal state
-            this.messageChannel.receiveMessage(sdsMessage);
-            await this.messageChannel.processTasks();
+          if (!foundMessage) {
+            console.warn(`Could not retrieve missed message: ${messageId} (no valid hash or hash query failed)`);
           }
-        } else {
-          this.addSystemMessage(`Could not retrieve missed messages`);
         }
+
+        // Process any newly received messages
+        await this.messageChannel.processTasks();
+
+        this.addSystemMessage(`Completed hash-based retrieval for missed messages`);
 
       } catch (error) {
         console.error('Failed to retrieve missed messages:', error);
@@ -794,7 +797,7 @@
           console.log('SDS: Missed messages detected', event.detail);
           this.addSystemMessage(`SDS: Detected ${event.detail.length} missed messages, retrieving...`);
 
-          // Retrieve missed messages using their message IDs
+          // Retrieve missed messages using hash-based queries
           await this.retrieveMissedMessages(event.detail);
         }
       });
@@ -1155,9 +1158,8 @@
         const missingMessageIds = this.messageChannel.sweepIncomingBuffer();
 
         if (missingMessageIds.length > 0) {
-          console.log(`SDS detected ${missingMessageIds.length} missing messages, retrieving...`);
-          this.addSystemMessage(`Retrieving ${missingMessageIds.length} missing messages...`);
-          await this.retrieveMissedMessagesFromCausalHistory(sdsMessage, missingMessageIds);
+          console.log(`SDS detected ${missingMessageIds.length} missing messages from sweep`);
+          // Note: Don't call retrieveMissedMessages here - let the MissedMessages event handle it
         }
 
         // Process SDS tasks immediately to handle the received message

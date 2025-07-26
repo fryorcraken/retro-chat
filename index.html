@@ -208,6 +208,10 @@
         min-width: 14px;
         height: 14px;
       }
+
+      .sds-id {
+        font-size: 7px;
+      }
     }
 
     /* Very small screens */
@@ -234,6 +238,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      position: relative;
     }
 
     .message-content {
@@ -270,6 +275,42 @@
 
     .tick.second {
       margin-left: 1px;
+    }
+
+    /* SDS Message ID styling */
+    .sds-id {
+      position: absolute;
+      right: 0;
+      top: 0;
+      font-size: 8px;
+      color: #00ff00;
+      opacity: 0.4;
+      font-family: 'Share Tech Mono', monospace;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+      z-index: 1;
+      background: rgba(0, 17, 0, 0.8);
+      padding: 1px 3px;
+      border-radius: 2px;
+      border: 1px solid rgba(0, 255, 0, 0.2);
+    }
+
+    .message:hover .sds-id {
+      opacity: 0.9;
+      color: #00ff00;
+    }
+
+    .message.system-message .sds-id {
+      display: none;
+    }
+
+    .message.historical-message .sds-id {
+      color: #0088aa;
+      opacity: 0.3;
+    }
+
+    .message.historical-message:hover .sds-id {
+      opacity: 0.7;
     }
 
     @keyframes spin {
@@ -519,16 +560,16 @@
 
     async loadMessageHistory() {
       try {
-        // Calculate time range for past 30 minutes
+        // Calculate time range for past 24 hours
         const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - (30 * 60 * 1000));
+        const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
 
         console.log(`Loading message history from ${twentyFourHoursAgo.toISOString()} to ${now.toISOString()}`);
 
         let messageCount = 0;
         const historicalMessages = [];
 
-        // Query the store for messages in the past 30 minutes
+        // Query the store for messages in the past 24 hours
         for await (const messagesPromises of this.node.store.queryGenerator(
           [this.decoder],
           {
@@ -553,7 +594,8 @@
                     timestamp: Number(decodedMessage.timestamp) * 1000,
                     sender: decodedMessage.nick,
                     text: new TextDecoder().decode(decodedMessage.payload),
-                    isHistorical: true
+                    isHistorical: true,
+                    sdsMessageId: sdsMessage.messageId || 'hist-' + Math.random().toString(36).substr(2, 6)
                   };
 
                   historicalMessages.push(chatMessage);
@@ -571,7 +613,7 @@
 
         if (messageCount > 0) {
           // Add separator for historical messages
-          this.addSystemMessage(`--- Loading ${messageCount} messages from the past 30 minutes ---`);
+          this.addSystemMessage(`--- Loading ${messageCount} messages from the past 24 hours ---`);
 
           // Display historical messages
           for (const message of historicalMessages) {
@@ -581,7 +623,7 @@
           this.addSystemMessage(`--- End of message history ---`);
           console.log(`Loaded ${messageCount} historical messages`);
         } else {
-          this.addSystemMessage('No previous messages found in the past 30 minutes');
+          this.addSystemMessage('No previous messages found in the past 24 hours');
           console.log('No historical messages found');
         }
 
@@ -733,7 +775,7 @@
 
         this.updateStatus('Loading history...', 'connecting');
 
-        // Query store for messages from the past 30 minutes
+        // Query store for messages from the past 24 hours
         await this.loadMessageHistory();
 
         this.updateStatus('Connected', 'connected');
@@ -885,6 +927,9 @@
             this.updateMessageStatus(messageId, 'sent');
             this.pendingMessages.set(sdsMessage.messageId, messageId);
 
+            // Update the SDS ID in the message element
+            this.updateMessageSDSId(messageId, sdsMessage.messageId);
+
             // Return success with message hash as retrieval hint
             // The message hash can be used later to query the store directly
             return {
@@ -944,6 +989,7 @@
         }
 
         console.log('SDS: Processing message with content length:', sdsMessage.content.length);
+        console.log('SDS: Full message object:', sdsMessage);
 
         // Decode the chat message from SDS content
         const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
@@ -951,15 +997,16 @@
         const message = {
           timestamp: Number(decodedMessage.timestamp) * 1000, // Convert to milliseconds
           sender: decodedMessage.nick,
-          text: new TextDecoder().decode(decodedMessage.payload)
+          text: new TextDecoder().decode(decodedMessage.payload),
+          sdsMessageId: sdsMessage.messageId || 'unknown'
         };
 
-        console.log('SDS: Decoded message from', message.sender, ':', message.text);
+        console.log('SDS: Decoded message from', message.sender, ':', message.text, 'SDS ID:', message.sdsMessageId);
 
         // Only add if it's not from ourselves (to avoid duplicates)
         if (message.sender !== this.nickname) {
           this.addChatMessage(message);
-          console.log('SDS: Added message to chat from', message.sender);
+          console.log('SDS: Added message to chat from', message.sender, 'with SDS ID:', message.sdsMessageId);
         } else {
           console.log('SDS: Ignoring own message');
         }
@@ -985,13 +1032,17 @@
       messageElement.className = 'message';
 
       const timestamp = new Date(message.timestamp).toLocaleTimeString();
+      const sdsId = message.sdsMessageId ? this.truncateSDSId(message.sdsMessageId) : 'no-id';
+
+      console.log('Adding chat message with SDS ID:', message.sdsMessageId, 'truncated to:', sdsId);
 
       messageElement.innerHTML = `
         <div class="message-content">
           <span class="timestamp">[${timestamp}]</span>
-          <span class="sender">&lt;${message.sender}&gt;</span>
+          <span class="sender">&lt;${this.escapeHtml(message.sender)}&gt;</span>
           <span class="message-text"> ${this.escapeHtml(message.text)}</span>
         </div>
+        <div class="sds-id" title="SDS ID: ${message.sdsMessageId || 'Unknown'}">${sdsId}</div>
       `;
 
       this.chatContainer.appendChild(messageElement);
@@ -1006,13 +1057,17 @@
 
       const timestamp = new Date(message.timestamp).toLocaleTimeString();
       const date = new Date(message.timestamp).toLocaleDateString();
+      const sdsId = message.sdsMessageId ? this.truncateSDSId(message.sdsMessageId) : 'hist-id';
+
+      console.log('Adding historical message with SDS ID:', message.sdsMessageId, 'truncated to:', sdsId);
 
       messageElement.innerHTML = `
         <div class="message-content">
           <span class="timestamp">[${date} ${timestamp}]</span>
-          <span class="sender">&lt;${message.sender}&gt;</span>
+          <span class="sender">&lt;${this.escapeHtml(message.sender)}&gt;</span>
           <span class="message-text"> ${this.escapeHtml(message.text)}</span>
         </div>
+        <div class="sds-id" title="SDS ID: ${message.sdsMessageId || 'Historical message'}">${sdsId}</div>
       `;
 
       this.chatContainer.appendChild(messageElement);
@@ -1037,6 +1092,7 @@
           <span class="message-text"> ${this.escapeHtml(message.text)}</span>
         </div>
         <div class="message-status ${statusClass}">${statusIcon}</div>
+        <div class="sds-id" title="SDS ID will appear after sending">...</div>
       `;
 
       this.chatContainer.appendChild(messageElement);
@@ -1067,6 +1123,24 @@
           statusElement.innerHTML = this.getStatusIcon(status);
         }
       }
+    }
+
+    updateMessageSDSId(messageId, sdsMessageId) {
+      const messageElement = this.chatContainer.querySelector(`[data-message-id="${messageId}"]`);
+      if (messageElement) {
+        const sdsElement = messageElement.querySelector('.sds-id');
+        if (sdsElement && sdsMessageId) {
+          const truncatedId = this.truncateSDSId(sdsMessageId);
+          sdsElement.textContent = truncatedId;
+          sdsElement.title = `SDS ID: ${sdsMessageId}`;
+        }
+      }
+    }
+
+    truncateSDSId(sdsMessageId) {
+      // Show first 6 characters of SDS message ID for discreteness
+      if (!sdsMessageId) return 'no-id';
+      return sdsMessageId.length > 6 ? sdsMessageId.substring(0, 6) + '...' : sdsMessageId;
     }
 
     addSystemMessage(text) {

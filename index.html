@@ -1184,9 +1184,10 @@
 
           let foundMessage = false;
 
-          // Try retrieval hint first if available
+          // Try retrieval hint first if available (hash-based query)
           if (retrievalHint) {
             try {
+              // Hash-based query - no time range
               for await (const messagesPromises of this.node.store.queryGenerator(
                 [this.decoder],
                 {
@@ -1200,7 +1201,7 @@
                     try {
                       const retrievedSdsMessage = decodeMessage(message.payload);
                       if (retrievedSdsMessage.messageId === missingMessageId) {
-                        console.log(`Successfully retrieved ${missingMessageId} using retrieval hint`);
+                        console.log(`Successfully retrieved ${missingMessageId} using hash query`);
 
                         // Feed the retrieved message back to SDS
                         this.messageChannel.receiveMessage(retrievedSdsMessage);
@@ -1216,58 +1217,17 @@
                 if (foundMessage) break;
               }
             } catch (hintQueryError) {
-              console.warn(`Retrieval hint query failed for ${missingMessageId}:`, hintQueryError);
+              console.warn(`Hash query failed for ${missingMessageId}:`, hintQueryError);
             }
           }
 
-          // Fall back to time-based search if hint didn't work
+          // No fallback to time-based search - hash queries only
           if (!foundMessage) {
-            console.log(`Trying time-based fallback for ${missingMessageId}`);
-
-            const now = new Date();
-            const sixHoursAgo = new Date(now.getTime() - (6 * 60 * 60 * 1000));
-
-            try {
-              for await (const messagesPromises of this.node.store.queryGenerator(
-                [this.decoder],
-                {
-                  timeStart: sixHoursAgo,
-                  timeEnd: now
-                }
-              )) {
-                const messages = await Promise.all(messagesPromises);
-
-                for (const message of messages) {
-                  if (message && message.payload) {
-                    try {
-                      const retrievedSdsMessage = decodeMessage(message.payload);
-                      if (retrievedSdsMessage.messageId === missingMessageId) {
-                        console.log(`Found ${missingMessageId} via time-based fallback`);
-
-                        // Feed the retrieved message back to SDS
-                        this.messageChannel.receiveMessage(retrievedSdsMessage);
-                        foundMessage = true;
-                        break;
-                      }
-                    } catch (decodeError) {
-                      console.warn('Failed to decode message in fallback query:', decodeError);
-                    }
-                  }
-                }
-
-                if (foundMessage) break;
-              }
-            } catch (fallbackError) {
-              console.warn(`Time-based fallback failed for ${missingMessageId}:`, fallbackError);
-            }
-          }
-
-          if (!foundMessage) {
-            console.warn(`Could not retrieve missing message: ${missingMessageId}`);
+            console.warn(`Could not retrieve missing message: ${missingMessageId} (no valid hash or hash query failed)`);
           }
         }
 
-        this.addSystemMessage(`Completed retrieval attempt for missing messages`);
+        this.addSystemMessage(`Completed hash-based retrieval for missing messages`);
 
       } catch (error) {
         console.error('Failed to retrieve missed messages from causal history:', error);

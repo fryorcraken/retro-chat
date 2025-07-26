@@ -724,8 +724,8 @@
     }
 
     initSDS() {
-      // Initialize SDS Message Channel
-      this.messageChannel = new MessageChannel('retro-chat');
+      // Initialize SDS Message Channel with causal history size of 100
+      this.messageChannel = new MessageChannel('retro-chat', { causalHistorySize: 100 });
 
       // Listen for SDS events
       this.messageChannel.addEventListener(MessageChannelEvent.MessageSent, (event) => {
@@ -1011,14 +1011,7 @@
         // Send through SDS for reliability
         await this.messageChannel.sendMessage(payload, async (sdsMessage) => {
           try {
-            // Attach up to 100 SDS causal history entries to outgoing message
-            const causalHistory = this.messageChannel.getCausalHistory(100);
-            if (causalHistory && causalHistory.length > 0) {
-              sdsMessage.causalHistory = causalHistory;
-              console.log(`Attaching ${causalHistory.length} causal history entries to outgoing message`);
-            }
-
-            // Create Waku message with SDS wrapper
+            // Create Waku message with SDS wrapper (causal history automatically included by SDS)
             const wakuMessage = { payload: encodeMessage(sdsMessage) };
 
             // Send via Waku LightPush
@@ -1069,8 +1062,17 @@
         const sdsMessage = decodeMessage(wakuMessage.payload);
         console.log('Waku: Decoded SDS message:', sdsMessage);
 
-        // Process through SDS message channel
+        // Process through SDS message channel first
         this.messageChannel.receiveMessage(sdsMessage);
+
+        // Use SDS sweepIncomingBuffer to detect missing messages
+        const missingMessageIds = this.messageChannel.sweepIncomingBuffer();
+
+        if (missingMessageIds.length > 0) {
+          console.log(`SDS detected ${missingMessageIds.length} missing messages, retrieving...`);
+          this.addSystemMessage(`Retrieving ${missingMessageIds.length} missing messages...`);
+          await this.retrieveMissedMessagesFromCausalHistory(sdsMessage, missingMessageIds);
+        }
 
         // Process SDS tasks immediately to handle the received message
         await this.messageChannel.processTasks();
@@ -1078,6 +1080,111 @@
 
       } catch (error) {
         console.error('Failed to process incoming Waku message (SDS only):', error);
+      }
+    }
+
+    async retrieveMissedMessagesFromCausalHistory(currentMessage, missingMessageIds) {
+      try {
+        // Use causal history from the current message to find retrieval hints
+        const causalHistory = currentMessage.causalHistory || [];
+        console.log(`Processing causal history with ${causalHistory.length} entries for ${missingMessageIds.length} missing messages`);
+
+        for (const missingMessageId of missingMessageIds) {
+          // Find retrieval hint for this missing message in causal history
+          const historyEntry = causalHistory.find(entry => entry.messageId === missingMessageId);
+          const retrievalHint = historyEntry?.retrievalHint;
+
+          console.log(`Retrieving missing message: ${missingMessageId}${retrievalHint ? ' with hint' : ' without hint'}`);
+
+          let foundMessage = false;
+
+          // Try retrieval hint first if available
+          if (retrievalHint) {
+            try {
+              for await (const messagesPromises of this.node.store.queryGenerator(
+                [this.decoder],
+                {
+                  messageHashes: [retrievalHint]
+                }
+              )) {
+                const messages = await Promise.all(messagesPromises);
+
+                for (const message of messages) {
+                  if (message && message.payload) {
+                    try {
+                      const retrievedSdsMessage = decodeMessage(message.payload);
+                      if (retrievedSdsMessage.messageId === missingMessageId) {
+                        console.log(`Successfully retrieved ${missingMessageId} using retrieval hint`);
+
+                        // Feed the retrieved message back to SDS
+                        this.messageChannel.receiveMessage(retrievedSdsMessage);
+                        foundMessage = true;
+                        break;
+                      }
+                    } catch (decodeError) {
+                      console.warn('Failed to decode retrieved message:', decodeError);
+                    }
+                  }
+                }
+
+                if (foundMessage) break;
+              }
+            } catch (hintQueryError) {
+              console.warn(`Retrieval hint query failed for ${missingMessageId}:`, hintQueryError);
+            }
+          }
+
+          // Fall back to time-based search if hint didn't work
+          if (!foundMessage) {
+            console.log(`Trying time-based fallback for ${missingMessageId}`);
+
+            const now = new Date();
+            const sixHoursAgo = new Date(now.getTime() - (6 * 60 * 60 * 1000));
+
+            try {
+              for await (const messagesPromises of this.node.store.queryGenerator(
+                [this.decoder],
+                {
+                  timeStart: sixHoursAgo,
+                  timeEnd: now
+                }
+              )) {
+                const messages = await Promise.all(messagesPromises);
+
+                for (const message of messages) {
+                  if (message && message.payload) {
+                    try {
+                      const retrievedSdsMessage = decodeMessage(message.payload);
+                      if (retrievedSdsMessage.messageId === missingMessageId) {
+                        console.log(`Found ${missingMessageId} via time-based fallback`);
+
+                        // Feed the retrieved message back to SDS
+                        this.messageChannel.receiveMessage(retrievedSdsMessage);
+                        foundMessage = true;
+                        break;
+                      }
+                    } catch (decodeError) {
+                      console.warn('Failed to decode message in fallback query:', decodeError);
+                    }
+                  }
+                }
+
+                if (foundMessage) break;
+              }
+            } catch (fallbackError) {
+              console.warn(`Time-based fallback failed for ${missingMessageId}:`, fallbackError);
+            }
+          }
+
+          if (!foundMessage) {
+            console.warn(`Could not retrieve missing message: ${missingMessageId}`);
+          }
+        }
+
+        this.addSystemMessage(`Completed retrieval attempt for missing messages`);
+
+      } catch (error) {
+        console.error('Failed to retrieve missed messages from causal history:', error);
       }
     }
 

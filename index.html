@@ -560,50 +560,139 @@
 
     async loadMessageHistory() {
       try {
-        // Calculate time range for past 24 hours
+        console.log('Starting progressive message history loading...');
+
         const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-
-        console.log(`Loading message history from ${twentyFourHoursAgo.toISOString()} to ${now.toISOString()}`);
-
+        let historicalMessages = [];
         let messageCount = 0;
-        const historicalMessages = [];
+        let foundSDSMessage = false;
+        let firstSDSMessage = null;
 
-        // Query the store for messages in the past 24 hours
-        for await (const messagesPromises of this.node.store.queryGenerator(
-          [this.decoder],
-          {
-            timeStart: twentyFourHoursAgo,
-            timeEnd: now
-          }
-        )) {
-          // Process each batch of messages
-          const messages = await Promise.all(messagesPromises);
+        // Progressive hourly queries up to 24 hours or until we find an SDS message
+        for (let hoursBack = 1; hoursBack <= 24 && !foundSDSMessage; hoursBack++) {
+          const endTime = new Date(now.getTime() - ((hoursBack - 1) * 60 * 60 * 1000));
+          const startTime = new Date(now.getTime() - (hoursBack * 60 * 60 * 1000));
 
-          for (const message of messages) {
-            if (message && message.payload) {
-              try {
-                // Decode as SDS message
-                const sdsMessage = decodeMessage(message.payload);
+          console.log(`Querying hour ${hoursBack}: ${startTime.toISOString()} to ${endTime.toISOString()}`);
 
-                if (sdsMessage.content && sdsMessage.content.length > 0) {
-                  // Decode the chat message from SDS content
-                  const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
+          try {
+            // Query the store for messages in this hour
+            for await (const messagesPromises of this.node.store.queryGenerator(
+              [this.decoder],
+              {
+                timeStart: startTime,
+                timeEnd: endTime
+              }
+            )) {
+              // Process each batch of messages
+              const messages = await Promise.all(messagesPromises);
 
-                  const chatMessage = {
-                    timestamp: Number(decodedMessage.timestamp) * 1000,
-                    sender: decodedMessage.nick,
-                    text: new TextDecoder().decode(decodedMessage.payload),
-                    sdsMessageId: sdsMessage.messageId || 'hist-' + Math.random().toString(36).substr(2, 6)
-                  };
+              for (const message of messages) {
+                if (message && message.payload) {
+                  try {
+                    // Try to decode as SDS message
+                    const sdsMessage = decodeMessage(message.payload);
 
-                  historicalMessages.push(chatMessage);
-                  messageCount++;
+                    if (sdsMessage.content && sdsMessage.content.length > 0) {
+                      // Found a valid SDS message!
+                      foundSDSMessage = true;
+                      if (!firstSDSMessage) {
+                        firstSDSMessage = sdsMessage;
+                        console.log('Found first SDS message, switching to retrieval hint mode');
+                      }
+
+                      // Decode the chat message from SDS content
+                      const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
+
+                      const chatMessage = {
+                        timestamp: Number(decodedMessage.timestamp) * 1000,
+                        sender: decodedMessage.nick,
+                        text: new TextDecoder().decode(decodedMessage.payload),
+                        sdsMessageId: sdsMessage.messageId || 'hist-' + Math.random().toString(36).substr(2, 6)
+                      };
+
+                      historicalMessages.push(chatMessage);
+                      messageCount++;
+                    }
+                  } catch (error) {
+                    console.warn('Could not decode message as SDS:', error);
+                  }
                 }
-              } catch (error) {
-                console.warn('Could not decode SDS message:', error);
               }
             }
+
+            // If we found SDS messages in this hour, break the loop
+            if (foundSDSMessage) {
+              console.log(`Found SDS messages in hour ${hoursBack}, stopping progressive search`);
+              break;
+            }
+
+          } catch (storeError) {
+            console.warn(`Store query failed for hour ${hoursBack}:`, storeError);
+            // Stop on store error
+            break;
+          }
+        }
+
+        // If we found SDS messages, use retrieval hints for more efficient querying
+        if (foundSDSMessage && firstSDSMessage) {
+          console.log('Using SDS retrieval hints for additional message history...');
+
+          try {
+            // Use SDS message channel to get missed messages with retrieval hints
+            const missingMessages = this.messageChannel.sweepIncomingBuffer();
+            if (missingMessages.length > 0) {
+              console.log(`Found ${missingMessages.length} missing messages via SDS sweep`);
+
+              // Query store using retrieval hints for missing messages
+              for (const missingMessageId of missingMessages) {
+                try {
+                  // Query with broader time range since we have SDS context
+                  const extendedStartTime = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+                  for await (const messagesPromises of this.node.store.queryGenerator(
+                    [this.decoder],
+                    {
+                      timeStart: extendedStartTime,
+                      timeEnd: now
+                    }
+                  )) {
+                    const messages = await Promise.all(messagesPromises);
+
+                    for (const message of messages) {
+                      if (message && message.payload) {
+                        try {
+                          const sdsMessage = decodeMessage(message.payload);
+                          if (sdsMessage.messageId === missingMessageId && sdsMessage.content && sdsMessage.content.length > 0) {
+                            const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
+
+                            const chatMessage = {
+                              timestamp: Number(decodedMessage.timestamp) * 1000,
+                              sender: decodedMessage.nick,
+                              text: new TextDecoder().decode(decodedMessage.payload),
+                              sdsMessageId: sdsMessage.messageId
+                            };
+
+                            // Check if we already have this message
+                            const exists = historicalMessages.some(msg => msg.sdsMessageId === sdsMessage.messageId);
+                            if (!exists) {
+                              historicalMessages.push(chatMessage);
+                              messageCount++;
+                            }
+                          }
+                        } catch (error) {
+                          console.warn('Error processing message with retrieval hint:', error);
+                        }
+                      }
+                    }
+                  }
+                } catch (retrievalError) {
+                  console.warn('Failed to retrieve message with hint:', retrievalError);
+                }
+              }
+            }
+          } catch (sdsError) {
+            console.warn('SDS retrieval hint query failed:', sdsError);
           }
         }
 
@@ -617,7 +706,7 @@
           }
 
           // Add a subtle system message to indicate history was loaded
-          this.addSystemMessage(`Loaded ${messageCount} messages from network history`);
+          this.addSystemMessage(`Loaded ${messageCount} messages from network history (${foundSDSMessage ? 'with SDS' : 'legacy mode'})`);
           console.log(`Loaded ${messageCount} historical messages`);
         } else {
           console.log('No historical messages found');

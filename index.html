@@ -37,6 +37,10 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      flex-shrink: 0;
     }
 
     .title {
@@ -354,7 +358,7 @@
 </head>
 <body>
 <div class="header">
-  <div class="title">>>> RetroChat IRC v1.0 <<<</div>
+  <div class="title">RetroChat</div>
   <div class="user-info">
     <input type="text" class="nickname-input" placeholder="Enter nickname..." value="Anonymous">
     <div class="status-group">

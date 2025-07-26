@@ -481,6 +481,7 @@
       this.pendingMessages = new Map(); // Track pending messages with SDS
       this.messageChannel = null; // SDS Message Channel
       this.displayedMessages = new Set(); // Track displayed SDS message IDs to prevent dupes
+      this.displayedContent = new Set(); // Track displayed content (timestamp+text) to prevent content dupes
 
       this.initProtobuf();
       this.initElements();
@@ -708,8 +709,10 @@
         if (messageCount > 0) {
           // Display historical messages and mark as displayed
           for (const message of historicalMessages) {
+            const contentKey = `${message.timestamp}-${message.sender}-${message.text}`;
             this.addChatMessage(message);
             this.displayedMessages.add(message.sdsMessageId);
+            this.displayedContent.add(contentKey);
           }
 
           // Add a subtle system message to indicate history was loaded
@@ -1206,9 +1209,9 @@
         console.log('SDS: Processing message with content length:', sdsMessage.content.length);
         console.log('SDS: Full message object:', sdsMessage);
 
-        // Check for duplicate - skip if already displayed
+        // Check for SDS ID duplicate - skip if already displayed
         if (this.displayedMessages.has(sdsMessage.messageId)) {
-          console.log('SDS: Skipping duplicate message:', sdsMessage.messageId);
+          console.log('SDS: Skipping duplicate message by SDS ID:', sdsMessage.messageId);
           return;
         }
 
@@ -1223,12 +1226,22 @@
           lamportTimestamp: sdsMessage.lamportTimestamp || 0
         };
 
+        // Create content fingerprint for duplicate detection
+        const contentKey = `${message.timestamp}-${message.sender}-${message.text}`;
+
+        // Check for content duplicate - skip if same timestamp+sender+text already displayed
+        if (this.displayedContent.has(contentKey)) {
+          console.log('SDS: Skipping duplicate message by content:', contentKey);
+          return;
+        }
+
         console.log('SDS: Decoded message from', message.sender, ':', message.text, 'SDS ID:', message.sdsMessageId);
 
         // Only add if it's not from ourselves (to avoid duplicates) and not already displayed
         if (message.sender !== this.nickname) {
           this.addChatMessage(message);
           this.displayedMessages.add(message.sdsMessageId);
+          this.displayedContent.add(contentKey);
           console.log('SDS: Added message to chat from', message.sender, 'with SDS ID:', message.sdsMessageId);
         } else {
           console.log('SDS: Ignoring own message');

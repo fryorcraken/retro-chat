@@ -1011,6 +1011,13 @@
         // Send through SDS for reliability
         await this.messageChannel.sendMessage(payload, async (sdsMessage) => {
           try {
+            // Attach up to 100 SDS causal history entries to outgoing message
+            const causalHistory = this.messageChannel.getCausalHistory(100);
+            if (causalHistory && causalHistory.length > 0) {
+              sdsMessage.causalHistory = causalHistory;
+              console.log(`Attaching ${causalHistory.length} causal history entries to outgoing message`);
+            }
+
             // Create Waku message with SDS wrapper
             const wakuMessage = { payload: encodeMessage(sdsMessage) };
 

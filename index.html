@@ -456,18 +456,79 @@
       return `${randomAdj}${randomNoun}${randomNum}`;
     }
 
+    async retrieveMissedMessages(missedHistoryEntries) {
+      try {
+        const missedMessages = [];
+
+        // Query store for each missed message
+        for (const historyEntry of missedHistoryEntries) {
+          const { messageId, retrievalHint } = historyEntry;
+
+          console.log(`Retrieving missed message: ${messageId}`);
+
+          // Query store using message hash if available
+          const messages = [];
+          for await (const messagesPromises of this.node.store.queryGenerator(
+            [this.decoder],
+            {
+              messageHashes: retrievalHint ? [retrievalHint] : undefined,
+              // If no retrieval hint, query recent messages
+              timeStart: retrievalHint ? undefined : new Date(Date.now() - 60 * 60 * 1000), // Last hour
+              timeEnd: retrievalHint ? undefined : new Date()
+            }
+          )) {
+            const resolvedMessages = await Promise.all(messagesPromises);
+            messages.push(...resolvedMessages.filter(m => m && m.payload));
+          }
+
+          // Find the specific missed message by ID
+          for (const message of messages) {
+            try {
+              const sdsMessage = decodeMessage(message.payload);
+              if (sdsMessage.messageId === messageId) {
+                missedMessages.push(sdsMessage);
+                break;
+              }
+            } catch (error) {
+              console.warn('Error decoding message during retrieval:', error);
+            }
+          }
+        }
+
+        // Process retrieved messages
+        if (missedMessages.length > 0) {
+          this.addSystemMessage(`Retrieved ${missedMessages.length} of ${missedHistoryEntries.length} missed messages`);
+
+          // Sort by timestamp and process
+          missedMessages.sort((a, b) => (a.lamportTimestamp || 0) - (b.lamportTimestamp || 0));
+
+          for (const sdsMessage of missedMessages) {
+            // Process through SDS to update internal state
+            this.messageChannel.receiveMessage(sdsMessage);
+            await this.messageChannel.processTasks();
+          }
+        } else {
+          this.addSystemMessage(`Could not retrieve missed messages`);
+        }
+
+      } catch (error) {
+        console.error('Failed to retrieve missed messages:', error);
+        this.addSystemMessage(`Failed to retrieve missed messages: ${error.message}`);
+      }
+    }
+
     async loadMessageHistory() {
       try {
-        // Calculate time range for past 24 hours
+        // Calculate time range for past 30 minutes
         const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+        const twentyFourHoursAgo = new Date(now.getTime() - (30 * 60 * 1000));
 
         console.log(`Loading message history from ${twentyFourHoursAgo.toISOString()} to ${now.toISOString()}`);
 
         let messageCount = 0;
         const historicalMessages = [];
 
-        // Query the store for messages in the past 24 hours
+        // Query the store for messages in the past 30 minutes
         for await (const messagesPromises of this.node.store.queryGenerator(
           [this.decoder],
           {
@@ -510,7 +571,7 @@
 
         if (messageCount > 0) {
           // Add separator for historical messages
-          this.addSystemMessage(`--- Loading ${messageCount} messages from the past 24 hours ---`);
+          this.addSystemMessage(`--- Loading ${messageCount} messages from the past 30 minutes ---`);
 
           // Display historical messages
           for (const message of historicalMessages) {
@@ -520,7 +581,7 @@
           this.addSystemMessage(`--- End of message history ---`);
           console.log(`Loaded ${messageCount} historical messages`);
         } else {
-          this.addSystemMessage('No previous messages found in the past 24 hours');
+          this.addSystemMessage('No previous messages found in the past 30 minutes');
           console.log('No historical messages found');
         }
 
@@ -563,10 +624,13 @@
         console.log('SDS: Partial acknowledgement', event.detail);
       });
 
-      this.messageChannel.addEventListener(MessageChannelEvent.MissedMessages, (event) => {
+      this.messageChannel.addEventListener(MessageChannelEvent.MissedMessages, async (event) => {
         if (event.detail.length > 0) {
           console.log('SDS: Missed messages detected', event.detail);
-          this.addSystemMessage(`SDS: Detected ${event.detail.length} missed messages`);
+          this.addSystemMessage(`SDS: Detected ${event.detail.length} missed messages, retrieving...`);
+
+          // Retrieve missed messages using their message IDs
+          await this.retrieveMissedMessages(event.detail);
         }
       });
 
@@ -584,6 +648,24 @@
           console.error('Error processing SDS tasks:', error);
         }
       }, 1000);
+
+      // Send sync messages every 30 seconds
+      setInterval(async () => {
+        if (this.node && this.status.classList.contains('connected')) {
+          try {
+            await this.messageChannel.sendSyncMessage(async (syncMessage) => {
+              // Send sync message via Waku
+              await this.node.lightPush.send(this.encoder, {
+                payload: encodeMessage(syncMessage)
+              });
+              return true;
+            });
+            console.log('SDS: Sent sync message');
+          } catch (error) {
+            console.error('Failed to send sync message:', error);
+          }
+        }
+      }, 30000); // Every 30 seconds
     }
 
     initElements() {
@@ -651,7 +733,7 @@
 
         this.updateStatus('Loading history...', 'connecting');
 
-        // Query store for messages from the past 24 hours
+        // Query store for messages from the past 30 minutes
         await this.loadMessageHistory();
 
         this.updateStatus('Connected', 'connected');
@@ -793,14 +875,22 @@
         // Send through SDS for reliability
         await this.messageChannel.sendMessage(payload, async (sdsMessage) => {
           try {
+            // Create Waku message with SDS wrapper
+            const wakuMessage = { payload: encodeMessage(sdsMessage) };
+
             // Send via Waku LightPush
-            await this.node.lightPush.send(this.encoder, { payload: encodeMessage(sdsMessage) });
+            const result = await this.node.lightPush.send(this.encoder, wakuMessage);
 
             // Update message status to sent and track SDS message ID
             this.updateMessageStatus(messageId, 'sent');
             this.pendingMessages.set(sdsMessage.messageId, messageId);
 
-            return { success: true };
+            // Return success with message hash as retrieval hint
+            // The message hash can be used later to query the store directly
+            return {
+              success: true,
+              retrievalHint: this.node.store.createCursor(wakuMessage)
+            };
           } catch (error) {
             console.error('Failed to send via Waku:', error);
             return { success: false };

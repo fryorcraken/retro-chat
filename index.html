@@ -755,6 +755,15 @@
         this.node = await createLightNode({ defaultBootstrap: true });
         await this.node.start();
 
+        // Dial the specific node
+        const multiAddrWithId = '/dns4/waku.fryorcraken.xyz/tcp/8000/wss/p2p/16Uiu2HAmMRvhDHrtiHft1FTUYnn6cVA8AWVrTyLUayJJ3MWpUZDB';
+        try {
+          await this.node.dial(multiAddrWithId);
+          console.log('Successfully dialed custom Waku node');
+        } catch (dialError) {
+          console.warn('Failed to dial custom node:', dialError);
+        }
+
         this.updateStatus('Waiting for peers...', 'connecting');
 
         // Wait for connection to remote peers

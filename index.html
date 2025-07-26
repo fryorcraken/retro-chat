@@ -465,6 +465,7 @@
                 uint64 timestamp = 1;
                 string nick = 2;
                 bytes payload = 3;
+                uint64 timestampMs = 4;
             }
         `;
 
@@ -709,7 +710,7 @@
         if (messageCount > 0) {
           // Display historical messages and mark as displayed
           for (const message of historicalMessages) {
-            const contentKey = `${message.timestamp}-${message.sender}-${message.text}`;
+            const contentKey = `${message.timestampMs}-${message.sender}-${message.text}`;
             this.addChatMessage(message);
             this.displayedMessages.add(message.sdsMessageId);
             this.displayedContent.add(contentKey);
@@ -1002,7 +1003,8 @@
         const chatMessage = {
           timestamp: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
           nick: this.nickname,
-          payload: new TextEncoder().encode(originalText)
+          payload: new TextEncoder().encode(originalText),
+          timestampMs: Date.now() // Timestamp in milliseconds
         };
 
         // Encode with protobuf
@@ -1220,14 +1222,15 @@
 
         const message = {
           timestamp: Number(decodedMessage.timestamp) * 1000,
+          timestampMs: Number(decodedMessage.timestampMs) || (Number(decodedMessage.timestamp) * 1000), // Use timestampMs if available, fallback to timestamp
           sender: decodedMessage.nick,
           text: new TextDecoder().decode(decodedMessage.payload),
           sdsMessageId: sdsMessage.messageId || 'unknown',
           lamportTimestamp: sdsMessage.lamportTimestamp || 0
         };
 
-        // Create content fingerprint for duplicate detection
-        const contentKey = `${message.timestamp}-${message.sender}-${message.text}`;
+        // Create content fingerprint using timestampMs for more precise duplicate detection
+        const contentKey = `${message.timestampMs}-${message.sender}-${message.text}`;
 
         // Check for content duplicate - skip if same timestamp+sender+text already displayed
         if (this.displayedContent.has(contentKey)) {

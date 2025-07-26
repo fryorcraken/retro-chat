@@ -480,6 +480,7 @@
       this.nodeCount = 0;
       this.pendingMessages = new Map(); // Track pending messages with SDS
       this.messageChannel = null; // SDS Message Channel
+      this.displayedMessages = new Set(); // Track displayed SDS message IDs to prevent dupes
 
       this.initProtobuf();
       this.initElements();
@@ -696,13 +697,19 @@
           }
         }
 
-        // Sort messages by timestamp to ensure proper order
-        historicalMessages.sort((a, b) => a.timestamp - b.timestamp);
+        // Sort messages by SDS order (lamport timestamp, then by message ID for deterministic ordering)
+        historicalMessages.sort((a, b) => {
+          if (a.lamportTimestamp !== b.lamportTimestamp) {
+            return a.lamportTimestamp - b.lamportTimestamp;
+          }
+          return a.sdsMessageId.localeCompare(b.sdsMessageId);
+        });
 
         if (messageCount > 0) {
-          // Display historical messages without separators - they should look like live messages
+          // Display historical messages and mark as displayed
           for (const message of historicalMessages) {
             this.addChatMessage(message);
+            this.displayedMessages.add(message.sdsMessageId);
           }
 
           // Add a subtle system message to indicate history was loaded
@@ -1199,21 +1206,29 @@
         console.log('SDS: Processing message with content length:', sdsMessage.content.length);
         console.log('SDS: Full message object:', sdsMessage);
 
+        // Check for duplicate - skip if already displayed
+        if (this.displayedMessages.has(sdsMessage.messageId)) {
+          console.log('SDS: Skipping duplicate message:', sdsMessage.messageId);
+          return;
+        }
+
         // Decode the chat message from SDS content
         const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
 
         const message = {
-          timestamp: Number(decodedMessage.timestamp) * 1000, // Convert to milliseconds
+          timestamp: Number(decodedMessage.timestamp) * 1000,
           sender: decodedMessage.nick,
           text: new TextDecoder().decode(decodedMessage.payload),
-          sdsMessageId: sdsMessage.messageId || 'unknown'
+          sdsMessageId: sdsMessage.messageId || 'unknown',
+          lamportTimestamp: sdsMessage.lamportTimestamp || 0
         };
 
         console.log('SDS: Decoded message from', message.sender, ':', message.text, 'SDS ID:', message.sdsMessageId);
 
-        // Only add if it's not from ourselves (to avoid duplicates)
+        // Only add if it's not from ourselves (to avoid duplicates) and not already displayed
         if (message.sender !== this.nickname) {
           this.addChatMessage(message);
+          this.displayedMessages.add(message.sdsMessageId);
           console.log('SDS: Added message to chat from', message.sender, 'with SDS ID:', message.sdsMessageId);
         } else {
           console.log('SDS: Ignoring own message');
@@ -1221,6 +1236,70 @@
 
       } catch (error) {
         console.error('Failed to process SDS message:', error);
+      }
+    }
+
+    storeSDSMessage(sdsMessage) {
+      try {
+        console.log('SDS: Storing message:', sdsMessage.messageId);
+
+        // Decode the chat message from SDS content
+        const decodedMessage = this.Chat2Message.decode(sdsMessage.content);
+
+        const message = {
+          timestamp: Number(decodedMessage.timestamp) * 1000,
+          sender: decodedMessage.nick,
+          text: new TextDecoder().decode(decodedMessage.payload),
+          sdsMessageId: sdsMessage.messageId || 'unknown',
+          lamportTimestamp: sdsMessage.lamportTimestamp || 0,
+          sdsMessage: sdsMessage
+        };
+
+        // Store the message (this will overwrite duplicates)
+        this.allMessages.set(sdsMessage.messageId, message);
+
+      } catch (error) {
+        console.error('Failed to store SDS message:', error);
+      }
+    }
+
+    refreshMessageDisplay() {
+      try {
+        // Get all deliverable messages from SDS in proper order
+        const deliverableMessages = [];
+
+        // Get all stored messages and check which ones SDS says are deliverable
+        for (const [messageId, message] of this.allMessages.entries()) {
+          // Skip our own messages to avoid duplicates
+          if (message.sender === this.nickname) {
+            continue;
+          }
+
+          // Only display if not already displayed
+          if (!this.displayedMessages.has(messageId)) {
+            deliverableMessages.push(message);
+          }
+        }
+
+        // Sort by lamport timestamp for SDS ordering
+        deliverableMessages.sort((a, b) => {
+          if (a.lamportTimestamp !== b.lamportTimestamp) {
+            return a.lamportTimestamp - b.lamportTimestamp;
+          }
+          return a.sdsMessageId.localeCompare(b.sdsMessageId);
+        });
+
+        // Display new messages
+        for (const message of deliverableMessages) {
+          if (!this.displayedMessages.has(message.sdsMessageId)) {
+            this.addChatMessage(message);
+            this.displayedMessages.add(message.sdsMessageId);
+            console.log('Displayed message:', message.sdsMessageId, 'from', message.sender);
+          }
+        }
+
+      } catch (error) {
+        console.error('Failed to refresh message display:', error);
       }
     }
 

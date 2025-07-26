@@ -230,6 +230,10 @@
       .sds-id {
         font-size: 7px;
       }
+
+      .source-label {
+        font-size: 8px;
+      }
     }
 
     /* Very small screens */
@@ -295,12 +299,12 @@
       margin-left: 1px;
     }
 
-    /* SDS Message ID styling */
-    .sds-id {
+    /* Source label styling */
+    .source-label {
       position: absolute;
       right: 0;
       top: 0;
-      font-size: 8px;
+      font-size: 9px;
       color: #00ff00;
       opacity: 0.4;
       font-family: 'Share Tech Mono', monospace;
@@ -308,26 +312,28 @@
       pointer-events: none;
       z-index: 1;
       background: rgba(0, 17, 0, 0.8);
-      padding: 1px 3px;
+      padding: 1px 4px;
       border-radius: 2px;
       border: 1px solid rgba(0, 255, 0, 0.2);
+      font-weight: bold;
+      white-space: nowrap;
     }
 
-    .message:hover .sds-id {
+    .message:hover .source-label {
       opacity: 0.9;
       color: #00ff00;
     }
 
-    .message.system-message .sds-id {
+    .message.system-message .source-label {
       display: none;
     }
 
-    .message.historical-message .sds-id {
+    .message.historical-message .source-label {
       color: #0088aa;
       opacity: 0.3;
     }
 
-    .message.historical-message:hover .sds-id {
+    .message.historical-message:hover .source-label {
       opacity: 0.7;
     }
 
@@ -551,6 +557,9 @@
                       if (retrievedSdsMessage.messageId === messageId) {
                         console.log(`Successfully retrieved ${messageId} using hash query`);
 
+                        // Mark the message as retrieved via hash query before feeding to SDS
+                        retrievedSdsMessage._retrievalSource = 'store - sds';
+
                         // Feed the retrieved message back to SDS
                         this.messageChannel.receiveMessage(retrievedSdsMessage);
                         foundMessage = true;
@@ -627,6 +636,8 @@
                     const sdsMessage = decodeMessage(message.payload);
 
                     if (sdsMessage.content && sdsMessage.content.length > 0) {
+                      this.messageChannel.receiveMessage(sdsMessage);
+
                       // Found a valid SDS message!
                       foundSDSMessage = true;
                       if (!firstSDSMessage) {
@@ -641,7 +652,8 @@
                         timestamp: Number(decodedMessage.timestamp) * 1000,
                         sender: decodedMessage.nick,
                         text: new TextDecoder().decode(decodedMessage.payload),
-                        sdsMessageId: sdsMessage.messageId || 'hist-' + Math.random().toString(36).substr(2, 6)
+                        sdsMessageId: sdsMessage.messageId || undefined,
+                        source: 'store - time'
                       };
 
                       historicalMessages.push(chatMessage);
@@ -1100,6 +1112,9 @@
         // Send through SDS for reliability
         await this.messageChannel.sendMessage(payload, async (sdsMessage) => {
           try {
+            // Mark the SDS message as sent by local app
+            sdsMessage._retrievalSource = 'sent';
+
             // Create Waku message with SDS wrapper (causal history automatically included by SDS)
             const wakuMessage = { payload: encodeMessage(sdsMessage) };
 
@@ -1262,7 +1277,8 @@
           sender: decodedMessage.nick,
           text: new TextDecoder().decode(decodedMessage.payload),
           sdsMessageId: sdsMessage.messageId || 'unknown',
-          lamportTimestamp: sdsMessage.lamportTimestamp || 0
+          lamportTimestamp: sdsMessage.lamportTimestamp || 0,
+          source: sdsMessage._retrievalSource || 'filter' // Use marked source or default to filter
         };
 
         // Create content fingerprint using timestampMs for more precise duplicate detection
@@ -1371,9 +1387,8 @@
       messageElement.className = 'message';
 
       const timestamp = new Date(message.timestamp).toLocaleTimeString();
-      const sdsId = message.sdsMessageId ? this.truncateSDSId(message.sdsMessageId) : 'no-id';
 
-      console.log('Adding chat message with SDS ID:', message.sdsMessageId, 'truncated to:', sdsId);
+      console.log('Adding chat message with source:', message.source);
 
       messageElement.innerHTML = `
         <div class="message-content">
@@ -1381,7 +1396,7 @@
           <span class="sender">&lt;${this.escapeHtml(message.sender)}&gt;</span>
           <span class="message-text"> ${this.escapeHtml(message.text)}</span>
         </div>
-        <div class="sds-id" title="SDS ID: ${message.sdsMessageId || 'Unknown'}">${sdsId}</div>
+        <div class="source-label" title="Message source: ${message.source}">${message.source}</div>
       `;
 
       this.chatContainer.appendChild(messageElement);
@@ -1465,15 +1480,9 @@
     }
 
     updateMessageSDSId(messageId, sdsMessageId) {
-      const messageElement = this.chatContainer.querySelector(`[data-message-id="${messageId}"]`);
-      if (messageElement) {
-        const sdsElement = messageElement.querySelector('.sds-id');
-        if (sdsElement && sdsMessageId) {
-          const truncatedId = this.truncateSDSId(sdsMessageId);
-          sdsElement.textContent = truncatedId;
-          sdsElement.title = `SDS ID: ${sdsMessageId}`;
-        }
-      }
+      // This function is no longer needed since we're using source labels instead of SDS IDs
+      // Keep it for compatibility but make it a no-op
+      console.log('updateMessageSDSId called but using source labels instead');
     }
 
     truncateSDSId(sdsMessageId) {

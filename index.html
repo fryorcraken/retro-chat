@@ -594,7 +594,6 @@
                     timestamp: Number(decodedMessage.timestamp) * 1000,
                     sender: decodedMessage.nick,
                     text: new TextDecoder().decode(decodedMessage.payload),
-                    isHistorical: true,
                     sdsMessageId: sdsMessage.messageId || 'hist-' + Math.random().toString(36).substr(2, 6)
                   };
 
@@ -612,18 +611,15 @@
         historicalMessages.sort((a, b) => a.timestamp - b.timestamp);
 
         if (messageCount > 0) {
-          // Add separator for historical messages
-          this.addSystemMessage(`--- Loading ${messageCount} messages from the past 24 hours ---`);
-
-          // Display historical messages
+          // Display historical messages without separators - they should look like live messages
           for (const message of historicalMessages) {
-            this.addHistoricalChatMessage(message);
+            this.addChatMessage(message);
           }
 
-          this.addSystemMessage(`--- End of message history ---`);
+          // Add a subtle system message to indicate history was loaded
+          this.addSystemMessage(`Loaded ${messageCount} messages from network history`);
           console.log(`Loaded ${messageCount} historical messages`);
         } else {
-          this.addSystemMessage('No previous messages found in the past 24 hours');
           console.log('No historical messages found');
         }
 

@@ -586,8 +586,6 @@
         // Process any newly received messages
         await this.messageChannel.processTasks();
 
-        this.addSystemMessage(`Completed hash-based retrieval for missed messages`);
-
       } catch (error) {
         console.error('Failed to retrieve missed messages:', error);
         this.addSystemMessage(`Failed to retrieve missed messages: ${error.message}`);

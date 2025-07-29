@@ -807,8 +807,6 @@
       this.messageChannel.addEventListener(MessageChannelEvent.MissedMessages, async (event) => {
         if (event.detail.length > 0) {
           console.log('SDS: Missed messages detected', event.detail);
-          this.addSystemMessage(`SDS: Detected ${event.detail.length} missed messages, retrieving...`);
-
           // Retrieve missed messages using hash-based queries
           await this.retrieveMissedMessages(event.detail);
         }
@@ -1243,8 +1241,6 @@
             console.warn(`Could not retrieve missing message: ${missingMessageId} (no valid hash or hash query failed)`);
           }
         }
-
-        this.addSystemMessage(`Completed hash-based retrieval for missing messages`);
 
       } catch (error) {
         console.error('Failed to retrieve missed messages from causal history:', error);

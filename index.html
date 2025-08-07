@@ -258,6 +258,10 @@
       color: #00ff00;
     }
 
+    .message-status.acknowledged {
+      color: #00ff00;
+    }
+
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
@@ -815,7 +819,13 @@
         const statusElement = messageElement.querySelector('.message-status');
         if (statusElement) {
           statusElement.className = `message-status ${status}`;
-          statusElement.textContent = status === 'sent' ? '✓' : '◐';
+          if (status === 'sending') {
+            statusElement.textContent = '◐';
+          } else if (status === 'sent') {
+            statusElement.textContent = '✓';
+          } else if (status === 'acknowledged') {
+            statusElement.textContent = '✓✓';
+          }
         }
       }
     }

@@ -392,7 +392,7 @@
     createLightNode,
     MessageChannelEvent,
     MessageChannel
-  } from 'https://unpkg.com/@waku/sdk@0.0.34-65e3e52.0/bundle/index.js';
+  } from 'https://unpkg.com/@waku/sdk@0.0.34-aac044f.0/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -515,7 +515,7 @@
         // Create Waku node
         this.node = await createLightNode({ defaultBootstrap: true });
         const encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
-        this.messageChannel = MessageChannel.create(this.node, "retro-chat-channel", encoder)
+        this.messageChannel = MessageChannel.create(this.node, "retro-chat-channel", this.nickname, encoder)
         await this.node.start();
 
         // Set up event listeners for connection state changes
@@ -730,6 +730,7 @@
         })
 
         this.messageChannel.addEventListener(MessageChannelEvent.OutMessageAcknowledged, (event) => {
+          console.log("received ack", event.detail)
           if (messageId === event.detail)
             this.updateMessageStatus(chatMessageId, 'acknowledged');
         })

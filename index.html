@@ -571,7 +571,7 @@
 
     handlePeerConnect(peerId) {
       this.updateConnectionStatus();
-      this.addSystemMessage(`Peer connected: ...${peerId.toString().substring(10, 20)}...`);
+      this.addSystemMessage(`Peer connected:    ...${peerId.toString().substring(10, 20)}...`);
       
       // Show the initial connection message only once when first peer connects
       if (!this.hasShownConnectedMessage) {
@@ -582,7 +582,7 @@
 
     handlePeerDisconnect(peerId) {
       this.updateConnectionStatus();
-      this.addSystemMessage(`Peer disconnected: ${peerId.toString().substring(0, 12)}...`);
+      this.addSystemMessage(`Peer disconnected: ...${peerId.toString().substring(10, 20)}...`);
     }
 
     updateConnectionStatus() {

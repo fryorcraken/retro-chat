@@ -536,6 +536,11 @@
           this.addSystemMessage(`Message sent: ${event.detail.toString().substring(0, 12)}...`);
         })
 
+        // Subscribe to sent events
+        this.messageChannel.messageChannel.addEventListener("sds:out:sync-sent", (event) => {
+          this.addSystemMessage(`Sync Message sent with history: ${event.detail.causalHistory.map((ch) => ch.messageId.toString().substring(0, 12))}...`);
+        })
+
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 

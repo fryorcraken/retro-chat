@@ -384,7 +384,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.5.3/dist/protobuf.min.js"></script>
 <script type="module">
-  import { createLightNode, MessageChannel, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-65e3e52.0/bundle/index.js';
+  import { createLightNode, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-65e3e52.0/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -462,19 +462,22 @@
 
         // Create Waku node
         this.node = await createLightNode({ defaultBootstrap: true });
-        const encoder = this.node.createEncoder({ contentTopic: this.contentTopic })
-        this.messageChannel = MessageChannel.create(this.node, "retro-channel", encoder);
         await this.node.start();
+
+        // Set up event listeners for connection state changes
+        this.setupWakuEventListeners();
 
         this.updateStatus('Waiting for peers...', 'connecting');
 
         // Create encoder and decoder
+        this.encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
         this.decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
 
         // Subscribe to messages
-        await this.messageChannel.subscribe([this.decoder]);
+        await this.node.filter.subscribe([this.decoder], (message) => {
+          this.handleIncomingMessage(message);
+        });
 
-        this.updateStatus('Connected', 'connected');
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 
@@ -488,6 +491,66 @@
         this.updateStatus('Connection failed', 'error');
         this.addSystemMessage(`Connection failed: ${error.message}`);
       }
+    }
+
+    setupWakuEventListeners() {
+      if (!this.node || !this.node.libp2p) return;
+
+      // Listen for peer connections
+      this.node.libp2p.addEventListener('peer:connect', (event) => {
+        console.log('Peer connected:', event.detail);
+        this.handlePeerConnect(event.detail);
+      });
+
+      // Listen for peer disconnections
+      this.node.libp2p.addEventListener('peer:disconnect', (event) => {
+        console.log('Peer disconnected:', event.detail);
+        this.handlePeerDisconnect(event.detail);
+      });
+
+      // Listen for connection events
+      this.node.libp2p.addEventListener('connection:open', (event) => {
+        console.log('Connection opened:', event.detail);
+        this.updateConnectionStatus();
+      });
+
+      // Listen for connection close events
+      this.node.libp2p.addEventListener('connection:close', (event) => {
+        console.log('Connection closed:', event.detail);
+        this.updateConnectionStatus();
+      });
+    }
+
+    handlePeerConnect(peerId) {
+      this.updateConnectionStatus();
+      this.addSystemMessage(`Peer connected: ${peerId.toString().substring(0, 12)}...`);
+    }
+
+    handlePeerDisconnect(peerId) {
+      this.updateConnectionStatus();
+      this.addSystemMessage(`Peer disconnected: ${peerId.toString().substring(0, 12)}...`);
+    }
+
+    updateConnectionStatus() {
+      // Update status based on current connections
+      setTimeout(() => {
+        this.updateNodeCountFromWaku();
+        
+        if (this.node && this.node.libp2p) {
+          const connections = this.node.libp2p.getConnections();
+          const activeConnections = connections.filter(conn => conn.status === 'open');
+          
+          if (activeConnections.length === 0) {
+            this.updateStatus('Disconnected', 'error');
+            this.messageInput.disabled = true;
+            this.sendButton.disabled = true;
+          } else {
+            this.updateStatus('Connected', 'connected');
+            this.messageInput.disabled = false;
+            this.sendButton.disabled = false;
+          }
+        }
+      }, 100); // Small delay to ensure connection state is updated
     }
 
     startNodeCountMonitoring() {

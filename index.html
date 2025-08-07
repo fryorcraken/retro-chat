@@ -414,6 +414,7 @@
       this.Chat2Message = null;
       this.nodeCount = 0;
       this.pendingMessages = new Set(); // Track pending messages
+      this.hasShownConnectedMessage = false; // Track if we've shown the initial connection message
 
       this.initProtobuf();
       this.initElements();
@@ -541,8 +542,6 @@
         // Start monitoring node connections
         this.startNodeCountMonitoring();
 
-        this.addSystemMessage('Connected to Waku network! You can now chat.');
-
       } catch (error) {
         console.error('Failed to initialize Waku:', error);
         this.updateStatus('Connection failed', 'error');
@@ -569,6 +568,12 @@
     handlePeerConnect(peerId) {
       this.updateConnectionStatus();
       this.addSystemMessage(`Peer connected: ${peerId.toString().substring(0, 12)}...`);
+      
+      // Show the initial connection message only once when first peer connects
+      if (!this.hasShownConnectedMessage) {
+        this.hasShownConnectedMessage = true;
+        this.addSystemMessage('Connected to Waku network! You can now chat.');
+      }
     }
 
     handlePeerDisconnect(peerId) {

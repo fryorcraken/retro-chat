@@ -285,6 +285,12 @@
       font-style: italic;
     }
 
+    .connection-message {
+      color: #666600;
+      font-style: italic;
+      opacity: 0.6;
+    }
+
     .input-container {
       background: #001100;
       border-top: 2px solid #00ff00;
@@ -571,7 +577,7 @@
 
     handlePeerConnect(peerId) {
       this.updateConnectionStatus();
-      this.addSystemMessage(`Peer connected:    ...${peerId.toString().substring(10, 20)}...`);
+      this.addConnectionMessage(`Peer connected:    ...${peerId.toString().substring(10, 20)}...`);
       
       // Show the initial connection message only once when first peer connects
       if (!this.hasShownConnectedMessage) {
@@ -582,7 +588,7 @@
 
     handlePeerDisconnect(peerId) {
       this.updateConnectionStatus();
-      this.addSystemMessage(`Peer disconnected: ...${peerId.toString().substring(10, 20)}...`);
+      this.addConnectionMessage(`Peer disconnected: ...${peerId.toString().substring(10, 20)}...`);
     }
 
     updateConnectionStatus() {
@@ -854,6 +860,17 @@
     addSystemMessage(text) {
       const messageElement = document.createElement('div');
       messageElement.className = 'message system-message';
+      messageElement.innerHTML = `
+        <div class="message-content">[SYSTEM] ${text}</div>
+      `;
+
+      this.chatContainer.appendChild(messageElement);
+      this.scrollToBottom();
+    }
+
+    addConnectionMessage(text) {
+      const messageElement = document.createElement('div');
+      messageElement.className = 'message connection-message';
       messageElement.innerHTML = `
         <div class="message-content">[SYSTEM] ${text}</div>
       `;

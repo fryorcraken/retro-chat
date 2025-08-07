@@ -360,7 +360,7 @@
 <div class="header">
   <div class="title">RetroChat</div>
   <div class="user-info">
-    <input type="text" class="nickname-input" placeholder="Enter nickname..." value="Anonymous">
+    <input type="text" class="nickname-input" placeholder="Enter nickname..." value="">
     <div class="status-group">
       <span class="status connecting" id="status">Connecting...</span>
       <span class="node-count" id="nodeCount">
@@ -405,7 +405,7 @@
       this.node = null;
       this.decoder = null;
       this.contentTopic = '/toy-chat/2/huilong/proto';
-      this.nickname = 'Anonymous';
+      this.nickname = this.generateRandomNickname();
       this.messages = [];
       this.Chat2Message = null;
       this.nodeCount = 0;
@@ -415,6 +415,24 @@
       this.initElements();
       this.initEventListeners();
       this.initWaku();
+    }
+
+    generateRandomNickname() {
+      const adjectives = [
+        'Cyber', 'Neon', 'Retro', 'Pixel', 'Code', 'Data', 'Hack', 'Tech',
+        'Digital', 'Binary', 'Matrix', 'Quantum', 'Neural', 'Crypto', 'Synth'
+      ];
+      
+      const nouns = [
+        'Hacker', 'Terminal', 'Gamer', 'Wizard', 'Ninja', 'Ghost', 'Runner',
+        'Rider', 'Walker', 'Coder', 'Byte', 'Node', 'Core', 'Link', 'Net'
+      ];
+      
+      const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+      const noun = nouns[Math.floor(Math.random() * nouns.length)];
+      const number = Math.floor(Math.random() * 100);
+      
+      return `${adjective}${noun}${number}`;
     }
 
     initProtobuf() {
@@ -430,6 +448,9 @@
       this.status = document.getElementById('status');
       this.nodeCount = document.getElementById('nodeCount');
       this.nodeTooltip = document.getElementById('nodeTooltip');
+      
+      // Set the generated nickname in the input field
+      this.nicknameInput.value = this.nickname;
     }
 
     initEventListeners() {
@@ -444,7 +465,7 @@
       });
 
       this.nicknameInput.addEventListener('change', (e) => {
-        this.nickname = e.target.value.trim() || 'Anonymous';
+        this.nickname = e.target.value.trim() || this.generateRandomNickname();
         this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
       });
 
@@ -452,7 +473,7 @@
       this.nicknameInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          this.nickname = e.target.value.trim() || 'Anonymous';
+          this.nickname = e.target.value.trim() || this.generateRandomNickname();
           this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
           this.messageInput.focus(); // Focus back to message input
         }

@@ -405,7 +405,7 @@
       this.node = null;
       this.decoder = null;
       this.contentTopic = '/toy-chat/2/huilong/proto';
-      this.nickname = this.generateRandomNickname();
+      this.nickname = this.loadNickname();
       this.messages = [];
       this.Chat2Message = null;
       this.nodeCount = 0;
@@ -415,6 +415,24 @@
       this.initElements();
       this.initEventListeners();
       this.initWaku();
+    }
+
+    loadNickname() {
+      try {
+        const stored = localStorage.getItem('retro-chat-nickname');
+        return stored || this.generateRandomNickname();
+      } catch (error) {
+        console.warn('Could not load nickname from localStorage:', error);
+        return this.generateRandomNickname();
+      }
+    }
+
+    saveNickname(nickname) {
+      try {
+        localStorage.setItem('retro-chat-nickname', nickname);
+      } catch (error) {
+        console.warn('Could not save nickname to localStorage:', error);
+      }
     }
 
     generateRandomNickname() {
@@ -432,7 +450,9 @@
       const noun = nouns[Math.floor(Math.random() * nouns.length)];
       const number = Math.floor(Math.random() * 100);
       
-      return `${adjective}${noun}${number}`;
+      const nickname = `${adjective}${noun}${number}`;
+      this.saveNickname(nickname);
+      return nickname;
     }
 
     initProtobuf() {
@@ -466,6 +486,7 @@
 
       this.nicknameInput.addEventListener('change', (e) => {
         this.nickname = e.target.value.trim() || this.generateRandomNickname();
+        this.saveNickname(this.nickname);
         this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
       });
 
@@ -474,6 +495,7 @@
         if (e.key === 'Enter') {
           e.preventDefault();
           this.nickname = e.target.value.trim() || this.generateRandomNickname();
+          this.saveNickname(this.nickname);
           this.addSystemMessage(`Nickname changed to: ${this.nickname}`);
           this.messageInput.focus(); // Focus back to message input
         }

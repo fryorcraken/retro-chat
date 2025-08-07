@@ -410,11 +410,10 @@
       this.decoder = null;
       this.contentTopic = '/toy-chat/2/huilong/proto';
       this.nickname = this.loadNickname();
-      this.messages = [];
       this.Chat2Message = null;
       this.nodeCount = 0;
-      this.pendingMessages = new Set(); // Track pending messages
       this.hasShownConnectedMessage = false; // Track if we've shown the initial connection message
+      this.seenMessages = new Set();
 
       this.initProtobuf();
       this.initElements();
@@ -572,7 +571,7 @@
 
     handlePeerConnect(peerId) {
       this.updateConnectionStatus();
-      this.addSystemMessage(`Peer connected: ${peerId.toString().substring(0, 12)}...`);
+      this.addSystemMessage(`Peer connected: ...${peerId.toString().substring(10, 20)}...`);
       
       // Show the initial connection message only once when first peer connects
       if (!this.hasShownConnectedMessage) {
@@ -764,6 +763,12 @@
       try {
         if (!wakuMessage.payload || !wakuMessage.payload.length || !this.Chat2Message) return;
 
+        // Abusing an API :]
+        const messageId = MessageChannel.getMessageId(wakuMessage.payload)
+        // We already processed this message
+        if (this.seenMessages.has(messageId)) return;
+
+        this.seenMessages.add(messageId);
         // Decode protobuf message
         const decodedMessage = this.Chat2Message.decode(wakuMessage.payload);
 

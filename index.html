@@ -18,7 +18,7 @@
       background: #000;
       color: #00ff00;
       min-height: 100vh;
-      height: 100%;
+      height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -134,6 +134,7 @@
       flex: 1;
       overflow-y: auto;
       padding: 10px 20px;
+      padding-bottom: 80px;
       background: #000;
       min-height: 0;
       -webkit-overflow-scrolling: touch;
@@ -178,14 +179,12 @@
 
       .chat-container {
         padding: 8px 15px;
-        padding-bottom: env(safe-area-inset-bottom, 0px);
+        padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
       }
 
       .input-container {
         padding: 10px 15px;
         padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-        position: relative;
-        z-index: 1000;
       }
 
       .message-input {
@@ -291,12 +290,34 @@
       opacity: 0.6;
     }
 
+    .local-message {
+      background: rgba(0, 255, 0, 0.05);
+      border-left: 3px solid #00ff00;
+      padding-left: 10px;
+      margin-left: 20px;
+    }
+
+    .local-message .sender {
+      color: #009900;
+      text-shadow: 0 0 2px #009900;
+    }
+
+    .local-message .message-text {
+      color: #ccffcc;
+    }
+
     .input-container {
       background: #001100;
       border-top: 2px solid #00ff00;
       padding: 15px 20px;
       display: flex;
       gap: 10px;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      flex-shrink: 0;
     }
 
     .message-input {
@@ -797,7 +818,8 @@
 
     addChatMessage(message) {
       const messageElement = document.createElement('div');
-      messageElement.className = 'message';
+      const isLocalMessage = message.sender === this.nickname;
+      messageElement.className = isLocalMessage ? 'message local-message' : 'message';
 
       const timestamp = new Date(message.timestamp).toLocaleTimeString();
 
@@ -817,7 +839,7 @@
 
     addChatMessageWithStatus(message) {
       const messageElement = document.createElement('div');
-      messageElement.className = 'message';
+      messageElement.className = 'message local-message';
       messageElement.dataset.messageId = message.messageId;
 
       const timestamp = new Date(message.timestamp).toLocaleTimeString();

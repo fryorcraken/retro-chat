@@ -530,6 +530,11 @@
           this.handleIncomingMessage(event.detail);
         })
 
+        // Subscribe to sent events
+        this.messageChannel.addEventListener(MessageChannelEvent.OutMessageSent, (event) => {
+          this.addSystemMessage(`Message sent: ${event.detail.toString().substring(0, 12)}...`);
+        })
+
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 

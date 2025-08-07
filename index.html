@@ -686,14 +686,14 @@
       this.messageInput.value = '';
 
       // Create a temporary message ID for tracking
-      const messageId = Date.now() + '-' + Math.random();
+      const chatMessageId = Date.now() + '-' + Math.random();
 
       // Add the message to chat with sending status
       const messageElement = this.addChatMessageWithStatus({
         timestamp: Date.now(),
         sender: this.nickname,
         text: originalText,
-        messageId: messageId,
+        messageId: chatMessageId,
         status: 'sending'
       });
 
@@ -708,11 +708,19 @@
         // Encode with protobuf
         const protoMessage = this.Chat2Message.create(message);
         const payload = this.Chat2Message.encode(protoMessage).finish();
+        const messageId = MessageChannel.getMessageId(payload)
+
+        this.messageChannel.addEventListener(MessageChannelEvent.OutMessageSent, (event) => {
+          if (messageId === event.detail)
+            this.updateMessageStatus(chatMessageId, 'sent');
+        })
+
+        this.messageChannel.addEventListener(MessageChannelEvent.OutMessageAcknowledged, (event) => {
+          if (messageId === event.detail)
+            this.updateMessageStatus(chatMessageId, 'acknowledged');
+        })
 
         await this.messageChannel.send(payload);
-
-        // Update message status to sent
-        this.updateMessageStatus(messageId, 'sent');
 
       } catch (error) {
         console.error('Failed to send message:', error);

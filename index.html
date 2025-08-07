@@ -384,7 +384,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.5.3/dist/protobuf.min.js"></script>
 <script type="module">
-  import { createLightNode, Protocols } from 'https://unpkg.com/@waku/sdk@0.0.34-65e3e52.0/bundle/index.js';
+  import {
+    createLightNode,
+    MessageChannelEvent,
+    MessageChannel
+  } from 'https://unpkg.com/@waku/sdk@0.0.34-65e3e52.0/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -462,6 +466,8 @@
 
         // Create Waku node
         this.node = await createLightNode({ defaultBootstrap: true });
+        const encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
+        this.messageChannel = MessageChannel.create(this.node, "retro-chat-channel", encoder)
         await this.node.start();
 
         // Set up event listeners for connection state changes
@@ -469,14 +475,13 @@
 
         this.updateStatus('Waiting for peers...', 'connecting');
 
-        // Create encoder and decoder
-        this.encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
         this.decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
 
         // Subscribe to messages
-        await this.node.filter.subscribe([this.decoder], (message) => {
-          this.handleIncomingMessage(message);
-        });
+        await this.messageChannel.subscribe([this.decoder]);
+        this.messageChannel.addEventListener(MessageChannelEvent.InMessageReceived, (event) => {
+          this.handleIncomingMessage(event.detail);
+        })
 
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
@@ -506,18 +511,6 @@
       this.node.libp2p.addEventListener('peer:disconnect', (event) => {
         console.log('Peer disconnected:', event.detail);
         this.handlePeerDisconnect(event.detail);
-      });
-
-      // Listen for connection events
-      this.node.libp2p.addEventListener('connection:open', (event) => {
-        console.log('Connection opened:', event.detail);
-        this.updateConnectionStatus();
-      });
-
-      // Listen for connection close events
-      this.node.libp2p.addEventListener('connection:close', (event) => {
-        console.log('Connection closed:', event.detail);
-        this.updateConnectionStatus();
       });
     }
 
@@ -664,7 +657,7 @@
       try {
         // Create protobuf message
         const message = {
-          timestamp: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
+          timestamp: Date.now(),
           nick: this.nickname,
           payload: new TextEncoder().encode(originalText)
         };
@@ -673,7 +666,7 @@
         const protoMessage = this.Chat2Message.create(message);
         const payload = this.Chat2Message.encode(protoMessage).finish();
 
-        await this.node.lightPush.send(this.encoder, { payload });
+        await this.messageChannel.send(payload);
 
         // Update message status to sent
         this.updateMessageStatus(messageId, 'sent');
@@ -696,17 +689,19 @@
     }
 
     handleIncomingMessage(wakuMessage) {
+      console.log("handling incoming message", wakuMessage)
       try {
-        if (!wakuMessage.payload || !this.Chat2Message) return;
+        if (!wakuMessage.payload || !wakuMessage.payload.length || !this.Chat2Message) return;
 
         // Decode protobuf message
         const decodedMessage = this.Chat2Message.decode(wakuMessage.payload);
 
         const message = {
-          timestamp: Number(decodedMessage.timestamp) * 1000, // Convert to milliseconds
+          timestamp: Number(decodedMessage.timestamp),
           sender: decodedMessage.nick,
           text: new TextDecoder().decode(decodedMessage.payload)
         };
+        console.log("decoded message", message);
 
         // Only add if it's not from ourselves (to avoid duplicates)
         if (message.sender !== this.nickname) {

@@ -24,6 +24,7 @@
       overflow: hidden;
     }
 
+    /*noinspection CssInvalidPropertyValue*/
     @supports (-webkit-touch-callout: none) {
       body {
         min-height: -webkit-fill-available;
@@ -417,9 +418,9 @@
 <script type="module">
   import {
     createLightNode,
-    MessageChannelEvent,
-    MessageChannel
-  } from 'https://unpkg.com/@waku/sdk@0.0.34-ced989a.0/bundle/index.js';
+    ReliableChannelEvent,
+    ReliableChannel
+  } from 'https://unpkg.com/@waku/sdk@0.0.34-e1212cc.0/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -434,7 +435,6 @@
   class RetroIRC {
     constructor() {
       this.node = null;
-      this.decoder = null;
       this.contentTopic = '/toy-chat/2/huilong/proto';
       this.nickname = this.loadNickname();
       this.Chat2Message = null;
@@ -540,30 +540,28 @@
 
         // Create Waku node
         this.node = await createLightNode({ defaultBootstrap: true });
+
         const encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
-        this.messageChannel = MessageChannel.create(this.node, "retro-chat-channel", this.nickname, encoder)
-        await this.node.start();
+        const decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
+        this.reliableChannel = await ReliableChannel.create(this.node, "collaborative-board", this.nickname, encoder, decoder)
 
         // Set up event listeners for connection state changes
         this.setupWakuEventListeners();
 
         this.updateStatus('Waiting for peers...', 'connecting');
 
-        this.decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
-
         // Subscribe to messages
-        await this.messageChannel.subscribe([this.decoder]);
-        this.messageChannel.addEventListener(MessageChannelEvent.InMessageReceived, (event) => {
+        this.reliableChannel.addEventListener(ReliableChannelEvent.InMessageReceived, (event) => {
           this.handleIncomingMessage(event.detail);
         })
 
         // Subscribe to sent events
-        this.messageChannel.addEventListener(MessageChannelEvent.OutMessageSent, (event) => {
+        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageSent, (event) => {
           this.addSystemMessage(`Message sent: ${event.detail.toString().substring(0, 12)}...`);
         })
 
         // Subscribe to sent events
-        this.messageChannel.messageChannel.addEventListener("sds:out:sync-sent", (event) => {
+        this.reliableChannel.messageChannel.addEventListener("sds:out:sync-sent", (event) => {
           this.addSystemMessage(`Sync Message sent with history: ${event.detail.causalHistory.map((ch) => ch.messageId.toString().substring(0, 12))}...`);
         })
 
@@ -753,20 +751,20 @@
         // Encode with protobuf
         const protoMessage = this.Chat2Message.create(message);
         const payload = this.Chat2Message.encode(protoMessage).finish();
-        const messageId = MessageChannel.getMessageId(payload)
+        const messageId = ReliableChannel.getMessageId(payload)
 
-        this.messageChannel.addEventListener(MessageChannelEvent.OutMessageSent, (event) => {
+        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageSent, (event) => {
           if (messageId === event.detail)
             this.updateMessageStatus(chatMessageId, 'sent');
         })
 
-        this.messageChannel.addEventListener(MessageChannelEvent.OutMessageAcknowledged, (event) => {
+        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageAcknowledged, (event) => {
           console.log("received ack", event.detail)
           if (messageId === event.detail)
             this.updateMessageStatus(chatMessageId, 'acknowledged');
         })
 
-        await this.messageChannel.send(payload);
+        await this.reliableChannel.send(payload);
 
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -791,7 +789,7 @@
         if (!wakuMessage.payload || !wakuMessage.payload.length || !this.Chat2Message) return;
 
         // Abusing an API :]
-        const messageId = MessageChannel.getMessageId(wakuMessage.payload)
+        const messageId = ReliableChannel.getMessageId(wakuMessage.payload)
         // We already processed this message
         if (this.seenMessages.has(messageId)) return;
 

@@ -82,54 +82,6 @@
       font-size: 12px;
     }
 
-    .node-count {
-      color: #00ffff;
-      font-size: 11px;
-      cursor: help;
-      position: relative;
-    }
-
-    .node-count .tooltip {
-      visibility: hidden;
-      opacity: 0;
-      position: absolute;
-      top: 100%;
-      right: 0;
-      margin-top: 5px;
-      background: #001100;
-      color: #00ff00;
-      padding: 8px 12px;
-      border: 1px solid #00ff00;
-      border-radius: 4px;
-      font-size: 10px;
-      white-space: nowrap;
-      max-width: 400px;
-      min-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      z-index: 1000;
-      transition: opacity 0.3s, visibility 0.3s;
-      box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
-    }
-
-    .node-count:hover .tooltip {
-      visibility: visible;
-      opacity: 1;
-    }
-
-    .tooltip-address {
-      display: block;
-      font-family: 'Share Tech Mono', monospace;
-      color: #00ffff;
-      margin-bottom: 2px;
-      white-space: normal;
-      word-break: break-all;
-      line-height: 1.2;
-    }
-
-    .tooltip-address:last-child {
-      margin-bottom: 0;
-    }
 
     .chat-container {
       flex: 1;
@@ -174,9 +126,6 @@
         font-size: 9px;
       }
 
-      .node-count {
-        font-size: 8px;
-      }
 
       .chat-container {
         padding: 8px 15px;
@@ -221,11 +170,6 @@
         width: 100%;
       }
 
-      .node-count .tooltip {
-        right: 0;
-        left: auto;
-        max-width: calc(100vw - 40px);
-      }
     }
 
     .message {
@@ -506,10 +450,6 @@
     <input type="text" class="nickname-input" placeholder="Enter nickname..." value="">
     <div class="status-group">
       <span class="status connecting" id="status">Connecting...</span>
-      <span class="node-count" id="nodeCount">
-        Nodes: 0
-        <div class="tooltip" id="nodeTooltip">No connections</div>
-      </span>
     </div>
   </div>
 </div>
@@ -537,7 +477,9 @@
   import {
     createLightNode,
     ReliableChannelEvent,
-    ReliableChannel
+    ReliableChannel,
+    WakuEventType,
+    HealthStatus
   } from './waku-sdk-bundle.js';
 
   // Define protobuf schema
@@ -556,7 +498,6 @@
       this.contentTopic = '/toy-chat/2/huilong/proto';
       this.nickname = this.loadNickname();
       this.Chat2Message = null;
-      this.nodeCount = 0;
       this.hasShownConnectedMessage = false; // Track if we've shown the initial connection message
       this.seenMessages = new Set();
 
@@ -615,8 +556,6 @@
       this.sendButton = document.getElementById('sendButton');
       this.nicknameInput = document.querySelector('.nickname-input');
       this.status = document.getElementById('status');
-      this.nodeCount = document.getElementById('nodeCount');
-      this.nodeTooltip = document.getElementById('nodeTooltip');
       this.systemWindow = document.getElementById('systemWindow');
       this.systemContent = document.getElementById('systemContent');
       this.systemToggle = document.getElementById('systemToggle');
@@ -663,7 +602,6 @@
     async initWaku() {
       try {
         this.updateStatus('Connecting...', 'connecting');
-        this.updateNodeCount(0);
 
         // Create Waku node
         this.node = await createLightNode({ defaultBootstrap: true });
@@ -695,8 +633,6 @@
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 
-        // Start monitoring node connections
-        this.startNodeCountMonitoring();
 
       } catch (error) {
         console.error('Failed to initialize Waku:', error);
@@ -706,142 +642,60 @@
     }
 
     setupWakuEventListeners() {
-      if (!this.node || !this.node.libp2p) return;
+      if (!this.node || !this.node.events) return;
 
-      // Listen for peer connections
-      this.node.libp2p.addEventListener('peer:connect', (event) => {
-        console.log('Peer connected:', event.detail);
-        this.handlePeerConnect(event.detail);
+      // Listen for health updates which provide node health status
+      this.node.events.addEventListener(WakuEventType.Health, (event) => {
+        console.log('Node health update:', event.detail);
+        this.handleHealthUpdate(event.detail);
       });
 
-      // Listen for peer disconnections
-      this.node.libp2p.addEventListener('peer:disconnect', (event) => {
-        console.log('Peer disconnected:', event.detail);
-        this.handlePeerDisconnect(event.detail);
-      });
     }
 
-    handlePeerConnect(peerId) {
-      this.updateConnectionStatus();
-      this.addConnectionMessage(`Peer connected:    ...${peerId.toString().substring(10, 20)}...`);
+    handleHealthUpdate(healthStatus) {
+      console.log('Processing health update:', healthStatus);
       
-      // Show the initial connection message only once when first peer connects
-      if (!this.hasShownConnectedMessage) {
-        this.hasShownConnectedMessage = true;
-        this.addSystemMessage('Connected to Waku network! You can now chat.');
-      }
-    }
-
-    handlePeerDisconnect(peerId) {
-      this.updateConnectionStatus();
-      this.addConnectionMessage(`Peer disconnected: ...${peerId.toString().substring(10, 20)}...`);
-    }
-
-    updateConnectionStatus() {
-      // Update status based on current connections
-      setTimeout(() => {
-        this.updateNodeCountFromWaku();
+      // Handle health status changes with user-friendly terms
+      if (healthStatus === HealthStatus.Unhealthy) {
+        this.addSystemMessage('Network status: Disconnected - No peer connections');
+        this.updateStatus('Disconnected', 'error');
+        this.messageInput.disabled = true;
+        this.sendButton.disabled = true;
+      } else if (healthStatus === HealthStatus.MinimallyHealthy) {
+        this.addSystemMessage('Network status: Connecting - Limited peer connections');
+        this.updateStatus('Connecting', 'connecting');
+        this.messageInput.disabled = false;
+        this.sendButton.disabled = false;
         
-        if (this.node && this.node.libp2p) {
-          const connections = this.node.libp2p.getConnections();
-          const activeConnections = connections.filter(conn => conn.status === 'open');
-          
-          if (activeConnections.length === 0) {
-            this.updateStatus('Disconnected', 'error');
-            this.messageInput.disabled = true;
-            this.sendButton.disabled = true;
-          } else {
-            this.updateStatus('Connected', 'connected');
-            this.messageInput.disabled = false;
-            this.sendButton.disabled = false;
-          }
+        // Show the initial connection message only once when first peer connects
+        if (!this.hasShownConnectedMessage) {
+          this.hasShownConnectedMessage = true;
+          this.addSystemMessage('Connected to Waku network! You can now chat.');
         }
-      }, 100); // Small delay to ensure connection state is updated
-    }
-
-    startNodeCountMonitoring() {
-      // Update node count immediately and then every 5 seconds
-      this.updateNodeCountFromWaku();
-      setInterval(() => {
-        this.updateNodeCountFromWaku();
-      }, 5000);
-    }
-
-    async updateNodeCountFromWaku() {
-      if (this.node && this.node.libp2p && this.node.libp2p.getConnections) {
-        try {
-          const connections = this.node.libp2p.getConnections();
-          const activeConnections = connections.filter(conn => conn.status === 'open');
-          const connectedPeers = activeConnections.length;
-
-          // Get peer addresses for tooltip and extract domain names
-          const peerAddresses = activeConnections.map(conn => {
-            const remoteAddr = conn.remoteAddr;
-            if (remoteAddr) {
-              const addrString = remoteAddr.toString();
-              return this.extractDomainFromAddress(addrString);
-            }
-            return 'Unknown address';
-          });
-
-          this.updateNodeCount(connectedPeers, peerAddresses);
-        } catch (error) {
-          // Fallback if getConnections method doesn't exist or fails
-          console.warn('Could not get connection count:', error);
-          this.updateNodeCount(0, []);
+      } else if (healthStatus === HealthStatus.SufficientlyHealthy) {
+        this.addSystemMessage('Network status: Connected - Good peer connections');
+        this.updateStatus('Connected', 'connected');
+        this.messageInput.disabled = false;
+        this.sendButton.disabled = false;
+        
+        // Show the initial connection message only once when first peer connects
+        if (!this.hasShownConnectedMessage) {
+          this.hasShownConnectedMessage = true;
+          this.addSystemMessage('Connected to Waku network! You can now chat.');
         }
       }
     }
 
-    extractDomainFromAddress(address) {
-      try {
-        // Handle different multiaddr formats
-        // Examples:
-        // /dns4/node-01.do-ams3.waku.test/tcp/8000/ws/p2p/16Uiu2...
-        // /ip4/127.0.0.1/tcp/60001/ws/p2p/16Uiu2...
-        // /dns/bootstrap.libp2p.io/tcp/443/wss/p2p/QmNnooDu7...
 
-        const parts = address.split('/');
 
-        // Look for dns4, dns6, or dns parts
-        for (let i = 0; i < parts.length - 1; i++) {
-          if (parts[i] === 'dns4' || parts[i] === 'dns6' || parts[i] === 'dns') {
-            return parts[i + 1];
-          }
-        }
 
-        // If no domain found, look for IP address
-        for (let i = 0; i < parts.length - 1; i++) {
-          if (parts[i] === 'ip4' || parts[i] === 'ip6') {
-            return parts[i + 1];
-          }
-        }
 
-        // Fallback: return the original address if we can't parse it
-        return address;
-      } catch (error) {
-        return address;
-      }
-    }
 
     updateStatus(text, className) {
       this.status.textContent = text;
       this.status.className = `status ${className}`;
     }
 
-    updateNodeCount(count, addresses = []) {
-      const nodeCountSpan = this.nodeCount.firstChild;
-      nodeCountSpan.textContent = `Nodes: ${count}`;
-
-      // Update tooltip content
-      if (count === 0) {
-        this.nodeTooltip.textContent = 'No connections';
-      } else {
-        this.nodeTooltip.innerHTML = addresses
-          .map(addr => `<span class="tooltip-address">${this.escapeHtml(addr)}</span>`)
-          .join('');
-      }
-    }
 
     async sendMessage() {
       const text = this.messageInput.value.trim();

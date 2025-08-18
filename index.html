@@ -80,6 +80,45 @@
     .status {
       color: #ffff00;
       font-size: 12px;
+      cursor: help;
+      position: relative;
+    }
+
+    .status .tooltip {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 5px;
+      background: #001100;
+      color: #00ff00;
+      padding: 8px 12px;
+      border: 1px solid #00ff00;
+      border-radius: 4px;
+      font-size: 10px;
+      white-space: nowrap;
+      min-width: 150px;
+      z-index: 1000;
+      transition: opacity 0.3s, visibility 0.3s;
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+    }
+
+    .status:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .tooltip-protocol {
+      display: block;
+      font-family: 'Share Tech Mono', monospace;
+      color: #00ffff;
+      margin-bottom: 2px;
+      line-height: 1.2;
+    }
+
+    .tooltip-protocol:last-child {
+      margin-bottom: 0;
     }
 
 
@@ -123,6 +162,13 @@
       }
 
       .status {
+        font-size: 9px;
+      }
+
+      .status .tooltip {
+        right: 0;
+        left: auto;
+        max-width: calc(100vw - 40px);
         font-size: 9px;
       }
 
@@ -335,7 +381,7 @@
     .system-window {
       position: fixed;
       top: 70px;
-      right: 20px;
+      left: 20px;
       width: 300px;
       max-height: 250px;
       background: rgba(0, 17, 0, 0.95);
@@ -420,7 +466,7 @@
     @media (max-width: 768px) {
       .system-window {
         top: 50px;
-        right: 10px;
+        left: 10px;
         width: 250px;
         max-height: 150px;
       }
@@ -438,7 +484,7 @@
     @media (max-width: 480px) {
       .system-window {
         width: calc(100vw - 40px);
-        right: 10px;
+        left: 10px;
       }
     }
   </style>
@@ -449,7 +495,10 @@
   <div class="user-info">
     <input type="text" class="nickname-input" placeholder="Enter nickname..." value="">
     <div class="status-group">
-      <span class="status connecting" id="status">Connecting...</span>
+      <span class="status connecting" id="status">
+        Connecting...
+        <div class="tooltip" id="statusTooltip">Checking connections...</div>
+      </span>
     </div>
   </div>
 </div>
@@ -479,7 +528,8 @@
     ReliableChannelEvent,
     ReliableChannel,
     WakuEventType,
-    HealthStatus
+    HealthStatus,
+    Protocols
   } from './waku-sdk-bundle.js';
 
   // Define protobuf schema
@@ -556,6 +606,7 @@
       this.sendButton = document.getElementById('sendButton');
       this.nicknameInput = document.querySelector('.nickname-input');
       this.status = document.getElementById('status');
+      this.statusTooltip = document.getElementById('statusTooltip');
       this.systemWindow = document.getElementById('systemWindow');
       this.systemContent = document.getElementById('systemContent');
       this.systemToggle = document.getElementById('systemToggle');
@@ -633,6 +684,8 @@
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 
+        // Start monitoring peer counts for tooltip
+        this.startPeerCountMonitoring();
 
       } catch (error) {
         console.error('Failed to initialize Waku:', error);
@@ -684,16 +737,104 @@
           this.addSystemMessage('Connected to Waku network! You can now chat.');
         }
       }
+      
+      // Update tooltip content whenever health changes
+      this.updatePeerCountTooltip();
     }
 
 
+    startPeerCountMonitoring() {
+      // Update peer counts immediately and then every 5 seconds
+      this.updatePeerCountTooltip();
+      setInterval(() => {
+        this.updatePeerCountTooltip();
+      }, 5000);
+    }
 
+    async updatePeerCountTooltip() {
+      if (!this.node || !this.node.libp2p || !this.node.libp2p.getConnections) {
+        this.statusTooltip.textContent = 'No connection info available';
+        return;
+      }
 
+      try {
+        const connections = this.node.libp2p.getConnections();
+        const activeConnections = connections.filter(conn => conn.status === 'open');
+        
+        if (activeConnections.length === 0) {
+          this.statusTooltip.textContent = 'No peer connections';
+          return;
+        }
 
+        const protocolCounts = await this.countPeersByProtocol(activeConnections);
+        this.updateTooltipContent(protocolCounts);
+      } catch (error) {
+        console.warn('Could not get peer count info:', error);
+        this.statusTooltip.textContent = 'Connection info unavailable';
+      }
+    }
+
+    async countPeersByProtocol(connections) {
+      const protocolCounts = {
+        [Protocols.Filter]: 0,
+        [Protocols.LightPush]: 0,
+        [Protocols.Store]: 0,
+        [Protocols.Relay]: 0
+      };
+
+      for (const connection of connections) {
+        try {
+          const peer = await this.node.libp2p.peerStore.get(connection.remotePeer);
+          
+          // Check which protocols this peer supports
+          if (peer.protocols) {
+            for (const protocol of peer.protocols) {
+              if (protocol.includes('filter')) {
+                protocolCounts[Protocols.Filter]++;
+              } else if (protocol.includes('lightpush')) {
+                protocolCounts[Protocols.LightPush]++;
+              } else if (protocol.includes('store')) {
+                protocolCounts[Protocols.Store]++;
+              } else if (protocol.includes('relay')) {
+                protocolCounts[Protocols.Relay]++;
+              }
+            }
+          }
+        } catch (error) {
+          // Peer not found in store, skip
+          continue;
+        }
+      }
+
+      return protocolCounts;
+    }
+
+    updateTooltipContent(protocolCounts) {
+      const totalPeers = Object.values(protocolCounts).reduce((sum, count) => sum + count, 0);
+      
+      if (totalPeers === 0) {
+        this.statusTooltip.textContent = 'Connected but no protocol info';
+        return;
+      }
+
+      const protocolInfo = Object.entries(protocolCounts)
+        .filter(([_, count]) => count > 0)
+        .map(([protocol, count]) => `<span class="tooltip-protocol">${protocol}: ${count}</span>`)
+        .join('');
+
+      this.statusTooltip.innerHTML = protocolInfo || 'No supported protocols detected';
+    }
 
     updateStatus(text, className) {
+      // Preserve the tooltip while updating status text
+      const tooltip = this.status.querySelector('.tooltip');
       this.status.textContent = text;
       this.status.className = `status ${className}`;
+      
+      // Re-append the tooltip if it existed
+      if (tooltip) {
+        this.status.appendChild(tooltip);
+      }
     }
 
 

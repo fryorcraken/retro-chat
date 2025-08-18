@@ -652,8 +652,12 @@
       try {
         this.updateStatus('Connecting...', 'connecting');
 
-        // Create Waku node
-        this.node = await createLightNode({ defaultBootstrap: true });
+        // Create Waku node with custom bootstrap peers
+        const customBootstrap = '/dns4/waku.fryorcraken.xyz/tcp/8000/wss/p2p/16Uiu2HAmMRvhDHrtiHft1FTUYnn6cVA8AWVrTyLUayJJ3MWpUZDB';
+        this.node = await createLightNode({ 
+          defaultBootstrap: true,
+          bootstrapPeers: [customBootstrap]
+        });
 
         const encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
         const decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
@@ -661,6 +665,9 @@
 
         // Set up event listeners for connection state changes
         this.setupWakuEventListeners();
+
+        // Dial the specified peer
+        await this.dialCustomPeer();
 
         this.updateStatus('Waiting for peers...', 'connecting');
 
@@ -709,6 +716,11 @@
         console.log('Peer disconnected:', event.detail);
         this.handlePeerDisconnect(event.detail);
       });
+    }
+
+    async dialCustomPeer() {
+      // Custom peer added to bootstrap peers during node creation
+      this.addSystemMessage(`Custom peer waku.fryorcraken.xyz added to bootstrap peers`);
     }
 
     handlePeerConnect(peerId) {

@@ -15,3 +15,6 @@ node_modules
 
 #!.yarn/cache
 .pnp.*
+
+# Playwright MCP screenshots and artifacts
+.playwright-mcp/

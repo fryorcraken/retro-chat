@@ -946,7 +946,7 @@
       const isLocalMessage = message.sender === this.nickname;
       messageElement.className = isLocalMessage ? 'message local-message' : 'message';
 
-      const timestamp = new Date(message.timestamp).toLocaleTimeString([], { hour12: false });
+      const timestamp = this.formatTimestamp(message.timestamp);
 
       messageElement.innerHTML = `
         <div class="message-content">
@@ -967,7 +967,7 @@
       messageElement.className = 'message local-message';
       messageElement.dataset.messageId = message.messageId;
 
-      const timestamp = new Date(message.timestamp).toLocaleTimeString([], { hour12: false });
+      const timestamp = this.formatTimestamp(message.timestamp);
 
       const statusIcon = message.status === 'sending' ? '◐' : '✓';
       const statusClass = message.status;
@@ -1026,6 +1026,29 @@
       const messages = this.systemContent.querySelectorAll('.system-window-message');
       if (messages.length > 50) {
         messages[0].remove();
+      }
+    }
+
+    formatTimestamp(timestamp) {
+      const messageDate = new Date(timestamp);
+      const today = new Date();
+      
+      // Check if the message is from today
+      const isToday = messageDate.toDateString() === today.toDateString();
+      
+      if (isToday) {
+        // Show only time for today's messages
+        return messageDate.toLocaleTimeString([], { hour12: false });
+      } else {
+        // Show date and time for messages from other days
+        return messageDate.toLocaleString([], { 
+          year: 'numeric',
+          month: '2-digit', 
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
       }
     }
 

@@ -400,6 +400,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      cursor: move;
+      user-select: none;
     }
 
     .system-window-title {
@@ -608,6 +610,7 @@
       this.systemWindow = document.getElementById('systemWindow');
       this.systemContent = document.getElementById('systemContent');
       this.systemToggle = document.getElementById('systemToggle');
+      this.systemWindowHeader = this.systemWindow.querySelector('.system-window-header');
       
       // Set the generated nickname in the input field
       this.nicknameInput.value = this.nickname;
@@ -646,6 +649,111 @@
         this.systemWindow.classList.toggle('minimized');
         this.systemToggle.textContent = this.systemWindow.classList.contains('minimized') ? '+' : '−';
       });
+
+      // System window drag functionality
+      this.initSystemWindowDrag();
+    }
+
+    initSystemWindowDrag() {
+      let isDragging = false;
+      let currentX;
+      let currentY;
+      let initialX;
+      let initialY;
+      let xOffset = 0;
+      let yOffset = 0;
+
+      this.systemWindowHeader.addEventListener('mousedown', (e) => {
+        if (e.target === this.systemToggle) return; // Don't drag when clicking the toggle button
+        
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+
+        if (e.target === this.systemWindowHeader || e.target.parentNode === this.systemWindowHeader) {
+          isDragging = true;
+          this.systemWindow.style.zIndex = '1002'; // Bring to front while dragging
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+
+          xOffset = currentX;
+          yOffset = currentY;
+
+          // Constrain to viewport bounds
+          const rect = this.systemWindow.getBoundingClientRect();
+          const maxX = window.innerWidth - rect.width;
+          const maxY = window.innerHeight - rect.height;
+          
+          xOffset = Math.max(0, Math.min(xOffset, maxX));
+          yOffset = Math.max(0, Math.min(yOffset, maxY));
+
+          this.systemWindow.style.left = xOffset + 'px';
+          this.systemWindow.style.top = yOffset + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          this.systemWindow.style.zIndex = '1001'; // Return to normal z-index
+        }
+      });
+
+      // Touch events for mobile
+      this.systemWindowHeader.addEventListener('touchstart', (e) => {
+        if (e.target === this.systemToggle) return;
+        
+        const touch = e.touches[0];
+        initialX = touch.clientX - xOffset;
+        initialY = touch.clientY - yOffset;
+
+        if (e.target === this.systemWindowHeader || e.target.parentNode === this.systemWindowHeader) {
+          isDragging = true;
+          this.systemWindow.style.zIndex = '1002';
+        }
+      });
+
+      document.addEventListener('touchmove', (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          
+          const touch = e.touches[0];
+          currentX = touch.clientX - initialX;
+          currentY = touch.clientY - initialY;
+
+          xOffset = currentX;
+          yOffset = currentY;
+
+          // Constrain to viewport bounds
+          const rect = this.systemWindow.getBoundingClientRect();
+          const maxX = window.innerWidth - rect.width;
+          const maxY = window.innerHeight - rect.height;
+          
+          xOffset = Math.max(0, Math.min(xOffset, maxX));
+          yOffset = Math.max(0, Math.min(yOffset, maxY));
+
+          this.systemWindow.style.left = xOffset + 'px';
+          this.systemWindow.style.top = yOffset + 'px';
+        }
+      });
+
+      document.addEventListener('touchend', () => {
+        if (isDragging) {
+          isDragging = false;
+          this.systemWindow.style.zIndex = '1001';
+        }
+      });
+
+      // Initialize position from current CSS
+      const computedStyle = window.getComputedStyle(this.systemWindow);
+      xOffset = parseInt(computedStyle.left) || 20;
+      yOffset = parseInt(computedStyle.top) || 70;
     }
 
     async initWaku() {

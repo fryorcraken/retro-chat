@@ -769,7 +769,7 @@
 
         const encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
         const decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
-        this.reliableChannel = await ReliableChannel.create(this.node, "collaborative-board", this.nickname, encoder, decoder)
+        this.reliableChannel = await ReliableChannel.create(this.node, "retro-chat-channel", this.nickname, encoder, decoder)
 
         // Set up event listeners for connection state changes
         this.setupWakuEventListeners();
@@ -815,13 +815,11 @@
 
       // Listen for peer connections
       this.node.libp2p.addEventListener('peer:connect', (event) => {
-        console.log('Peer connected:', event.detail);
         this.handlePeerConnect(event.detail);
       });
 
       // Listen for peer disconnections
       this.node.libp2p.addEventListener('peer:disconnect', (event) => {
-        console.log('Peer disconnected:', event.detail);
         this.handlePeerDisconnect(event.detail);
       });
     }

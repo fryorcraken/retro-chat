@@ -262,7 +262,6 @@
     }
 
     .sender {
-      color: #00ffff;
       font-weight: bold;
     }
 
@@ -289,8 +288,7 @@
     }
 
     .local-message .sender {
-      color: #009900;
-      text-shadow: 0 0 2px #009900;
+      text-shadow: 0 0 2px currentColor;
     }
 
     .local-message .message-text {
@@ -638,6 +636,7 @@
       this.missingMessagesCount = 0;
       this.seenMissingMessages = new Set(); // Track unique missing messages
       this.missingMessagesByHint = new Map(); // Map retrieval hint to message element for crossing out
+      this.nicknameColors = new Map(); // Map nickname to color
 
       this.initProtobuf();
       this.initElements();
@@ -973,6 +972,46 @@
       return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
     }
 
+    // Get a consistent color for a nickname
+    getNicknameColor(nickname) {
+      // Return cached color if exists
+      if (this.nicknameColors.has(nickname)) {
+        return this.nicknameColors.get(nickname);
+      }
+      
+      // Define a palette of retro terminal colors
+      const colors = [
+        '#00ffff', // cyan
+        '#ff00ff', // magenta
+        '#ffff00', // yellow
+        '#00ff00', // green
+        '#ff8800', // orange
+        '#00aaff', // light blue
+        '#ff00aa', // pink
+        '#88ff00', // lime
+        '#ff5555', // light red
+        '#5555ff', // light blue
+        '#55ff55', // light green
+        '#ffaa00', // gold
+        '#aa00ff', // purple
+        '#00ffaa', // aqua
+        '#ff55ff', // light magenta
+      ];
+      
+      // Generate a deterministic index based on nickname
+      let hash = 0;
+      for (let i = 0; i < nickname.length; i++) {
+        hash = ((hash << 5) - hash) + nickname.charCodeAt(i);
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      const colorIndex = Math.abs(hash) % colors.length;
+      const color = colors[colorIndex];
+      
+      // Cache the color
+      this.nicknameColors.set(nickname, color);
+      return color;
+    }
+
     async initWaku() {
       try {
         this.updateStatus('Connecting...', 'connecting');
@@ -1213,11 +1252,12 @@
       messageElement.className = isLocalMessage ? 'message local-message' : 'message';
 
       const timestamp = this.formatTimestamp(message.timestamp);
+      const senderColor = this.getNicknameColor(message.sender);
 
       messageElement.innerHTML = `
         <div class="message-content">
           <span class="timestamp">[${timestamp}]</span>
-          <span class="sender">&lt;${message.sender}&gt;</span>
+          <span class="sender" style="color: ${senderColor};">&lt;${message.sender}&gt;</span>
           <span class="message-text"> ${this.escapeHtml(message.text)}</span>
         </div>
       `;
@@ -1234,6 +1274,7 @@
       messageElement.dataset.messageId = message.messageId;
 
       const timestamp = this.formatTimestamp(message.timestamp);
+      const senderColor = this.getNicknameColor(message.sender);
 
       const statusIcon = message.status === 'sending' ? '◐' : '✓';
       const statusClass = message.status;
@@ -1241,7 +1282,7 @@
       messageElement.innerHTML = `
         <div class="message-content">
           <span class="timestamp">[${timestamp}]</span>
-          <span class="sender">&lt;${message.sender}&gt;</span>
+          <span class="sender" style="color: ${senderColor};">&lt;${message.sender}&gt;</span>
           <span class="message-text"> ${this.escapeHtml(message.text)}</span>
         </div>
         <div class="message-status ${statusClass}">${statusIcon}</div>

@@ -797,10 +797,7 @@
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
 
-        // Start monitoring peer counts for tooltip
-        this.startPeerCountMonitoring();
-
-        // Initial connection status check
+        // Initial connection status check using current health
         this.updateConnectionStatus();
 
       } catch (error) {
@@ -811,16 +808,11 @@
     }
 
     setupWakuEventListeners() {
-      if (!this.node || !this.node.libp2p) return;
+      if (!this.node || !this.node.events) return;
 
-      // Listen for peer connections
-      this.node.libp2p.addEventListener('peer:connect', (event) => {
-        this.handlePeerConnect(event.detail);
-      });
-
-      // Listen for peer disconnections
-      this.node.libp2p.addEventListener('peer:disconnect', (event) => {
-        this.handlePeerDisconnect(event.detail);
+      // Listen for health status changes
+      this.node.events.addEventListener('waku:health', (event) => {
+        this.handleHealthChange(event.detail);
       });
     }
 
@@ -829,153 +821,51 @@
       this.addSystemMessage(`Custom peer waku.fryorcraken.xyz added to bootstrap peers`);
     }
 
-    handlePeerConnect(peerId) {
-      this.updateConnectionStatus();
-      this.addConnectionMessage(`Peer connected: ...${peerId.toString().substring(10, 20)}...`);
+    handleHealthChange(healthStatus) {
+      this.updateConnectionStatus(healthStatus);
       
-      // Show the initial connection message only once when first peer connects
-      if (!this.hasShownConnectedMessage) {
+      // Show connection message when first achieving healthy status
+      if (!this.hasShownConnectedMessage && healthStatus !== 'Unhealthy') {
         this.hasShownConnectedMessage = true;
         this.addSystemMessage('Connected to Waku network! You can now chat.');
       }
       
-      // Update tooltip content when peers change
-      this.updatePeerCountTooltip();
+      // Log health status changes
+      this.addConnectionMessage(`Health status: ${healthStatus}`);
     }
 
-    handlePeerDisconnect(peerId) {
-      this.updateConnectionStatus();
-      this.addConnectionMessage(`Peer disconnected: ...${peerId.toString().substring(10, 20)}...`);
+    updateConnectionStatus(healthStatus) {
+      // Use provided health status or get current health status
+      const status = healthStatus || this.node?.health || 'Unhealthy';
       
-      // Update tooltip content when peers change
-      this.updatePeerCountTooltip();
-    }
-
-    async updateConnectionStatus() {
-      // Update status based on current peer connections
-      setTimeout(async () => {
-        const protocolCounts = await this.getPeerProtocolCounts();
-        const hasLightPush = protocolCounts[Protocols.LightPush] > 0;
-        const hasFilter = protocolCounts[Protocols.Filter] > 0;
-        
-        if (hasLightPush && hasFilter) {
-          this.updateStatus('Connected', 'connected');
-          this.messageInput.disabled = false;
-          this.sendButton.disabled = false;
-        } else {
-          this.updateStatus('Disconnected', 'error');
-          this.messageInput.disabled = true;
-          this.sendButton.disabled = true;
-        }
-      }, 100); // Small delay to ensure connection state is updated
-    }
-
-
-    async getPeerProtocolCounts() {
-      if (!this.node || !this.node.libp2p || !this.node.libp2p.getConnections) {
-        return {
-          [Protocols.Filter]: 0,
-          [Protocols.LightPush]: 0,
-          [Protocols.Store]: 0,
-          [Protocols.Relay]: 0
-        };
+      if (status === 'SufficientlyHealthy') {
+        this.updateStatus('Connected', 'connected');
+        this.messageInput.disabled = false;
+        this.sendButton.disabled = false;
+      } else if (status === 'MinimallyHealthy') {
+        this.updateStatus('Connected-ish', 'connecting');
+        this.messageInput.disabled = false;
+        this.sendButton.disabled = false;
+      } else {
+        this.updateStatus('Disconnected', 'error');
+        this.messageInput.disabled = true;
+        this.sendButton.disabled = true;
       }
-
-      try {
-        const connections = this.node.libp2p.getConnections();
-        const activeConnections = connections.filter(conn => conn.status === 'open');
-        return await this.countPeersByProtocol(activeConnections);
-      } catch (error) {
-        console.warn('Could not get peer protocol counts:', error);
-        return {
-          [Protocols.Filter]: 0,
-          [Protocols.LightPush]: 0,
-          [Protocols.Store]: 0,
-          [Protocols.Relay]: 0
-        };
-      }
+      
+      // Update tooltip with health status
+      this.updateHealthTooltip(status);
     }
 
-    startPeerCountMonitoring() {
-      // Update peer counts immediately and then every 5 seconds
-      this.updatePeerCountTooltip();
-      setInterval(() => {
-        this.updatePeerCountTooltip();
-      }, 5000);
-    }
 
-    async updatePeerCountTooltip() {
-      if (!this.node || !this.node.libp2p || !this.node.libp2p.getConnections) {
-        this.statusTooltip.textContent = 'No connection info available';
-        return;
-      }
-
-      try {
-        const connections = this.node.libp2p.getConnections();
-        const activeConnections = connections.filter(conn => conn.status === 'open');
-        
-        if (activeConnections.length === 0) {
-          this.statusTooltip.textContent = 'No peer connections';
-          return;
-        }
-
-        const protocolCounts = await this.countPeersByProtocol(activeConnections);
-        this.updateTooltipContent(protocolCounts);
-      } catch (error) {
-        console.warn('Could not get peer count info:', error);
-        this.statusTooltip.textContent = 'Connection info unavailable';
-      }
-    }
-
-    async countPeersByProtocol(connections) {
-      const protocolCounts = {
-        [Protocols.Filter]: 0,
-        [Protocols.LightPush]: 0,
-        [Protocols.Store]: 0,
-        [Protocols.Relay]: 0
+    updateHealthTooltip(healthStatus) {
+      const statusDescriptions = {
+        'Unhealthy': 'No peer connections',
+        'MinimallyHealthy': 'Basic connectivity established',
+        'SufficientlyHealthy': 'Good connectivity to network'
       };
-
-      for (const connection of connections) {
-        try {
-          const peer = await this.node.libp2p.peerStore.get(connection.remotePeer);
-          
-          // Check which protocols this peer supports
-          if (peer.protocols) {
-            for (const protocol of peer.protocols) {
-              if (protocol.includes('filter')) {
-                protocolCounts[Protocols.Filter]++;
-              } else if (protocol.includes('lightpush')) {
-                protocolCounts[Protocols.LightPush]++;
-              } else if (protocol.includes('store')) {
-                protocolCounts[Protocols.Store]++;
-              } else if (protocol.includes('relay')) {
-                protocolCounts[Protocols.Relay]++;
-              }
-            }
-          }
-        } catch (error) {
-          // Peer not found in store, skip
-          continue;
-        }
-      }
-
-      return protocolCounts;
-    }
-
-    updateTooltipContent(protocolCounts) {
-      const totalPeers = Object.values(protocolCounts).reduce((sum, count) => sum + count, 0);
       
-      if (totalPeers === 0) {
-        this.statusTooltip.textContent = 'Connected but no protocol info';
-        return;
-      }
-
-      const protocolInfo = Object.entries(protocolCounts)
-        .filter(([_, count]) => count > 0)
-        .map(([protocol, count]) => `<span class="tooltip-protocol">${protocol}: ${count}</span>`)
-        .join('');
-
-      this.statusTooltip.innerHTML = protocolInfo || 'No supported protocols detected';
+      const description = statusDescriptions[healthStatus] || 'Unknown status';
+      this.statusTooltip.innerHTML = `<span class="tooltip-protocol">Status: ${healthStatus}</span><span class="tooltip-protocol">${description}</span>`;
     }
 
     updateStatus(text, className) {

@@ -378,7 +378,7 @@
     }
 
     /* System Window Styles */
-    .system-window {
+    .system-window, .missing-messages-window {
       position: fixed;
       top: 70px;
       left: 20px;
@@ -393,7 +393,15 @@
       backdrop-filter: blur(5px);
     }
 
-    .system-window-header {
+    .missing-messages-window {
+      top: 70px;
+      right: 20px;
+      left: auto;
+      border-color: #ff6600;
+      box-shadow: 0 0 15px rgba(255, 102, 0, 0.3);
+    }
+
+    .system-window-header, .missing-messages-window-header {
       background: #001100;
       border-bottom: 1px solid #00ff00;
       padding: 4px 8px;
@@ -404,13 +412,21 @@
       user-select: none;
     }
 
-    .system-window-title {
+    .missing-messages-window-header {
+      border-bottom-color: #ff6600;
+    }
+
+    .system-window-title, .missing-messages-window-title {
       color: #00ff00;
       font-size: 10px;
       font-weight: bold;
     }
 
-    .system-window-toggle {
+    .missing-messages-window-title {
+      color: #ff6600;
+    }
+
+    .system-window-toggle, .missing-messages-window-toggle {
       background: none;
       border: none;
       color: #00ff00;
@@ -425,27 +441,31 @@
       font-family: inherit;
     }
 
-    .system-window-toggle:hover {
+    .system-window-toggle:hover, .missing-messages-window-toggle:hover {
       background: rgba(0, 255, 0, 0.1);
     }
 
-    .system-window-content {
+    .system-window-content, .missing-messages-window-content {
       max-height: 200px;
       overflow-y: auto;
       padding: 6px;
     }
 
-    .system-window-content::-webkit-scrollbar {
+    .system-window-content::-webkit-scrollbar, .missing-messages-window-content::-webkit-scrollbar {
       width: 4px;
     }
 
-    .system-window-content::-webkit-scrollbar-track {
+    .system-window-content::-webkit-scrollbar-track, .missing-messages-window-content::-webkit-scrollbar-track {
       background: #001100;
     }
 
-    .system-window-content::-webkit-scrollbar-thumb {
+    .system-window-content::-webkit-scrollbar-thumb, .missing-messages-window-content::-webkit-scrollbar-thumb {
       background: #00ff00;
       border-radius: 2px;
+    }
+
+    .missing-messages-window-content::-webkit-scrollbar-thumb {
+      background: #ff6600;
     }
 
     .system-window-message {
@@ -460,33 +480,75 @@
       opacity: 0.8;
     }
 
-    .system-window.minimized .system-window-content {
+    .missing-messages-window-message {
+      color: #ff6600;
+      margin-bottom: 2px;
+      line-height: 1.2;
+      font-size: 9px;
+      font-family: 'Share Tech Mono', monospace;
+      padding: 1px 0;
+      border-bottom: 1px solid rgba(255, 102, 0, 0.15);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .missing-messages-window-message:last-child {
+      border-bottom: none;
+    }
+
+    .missing-messages-window-message .message-id {
+      color: #ffaa00;
+      font-weight: bold;
+    }
+
+    .missing-messages-window-message .retrieval-hint {
+      color: #ff8800;
+      opacity: 0.9;
+    }
+
+    .system-window.minimized .system-window-content,
+    .missing-messages-window.minimized .missing-messages-window-content {
       display: none;
     }
 
     /* Mobile adjustments for system window */
     @media (max-width: 768px) {
-      .system-window {
+      .system-window, .missing-messages-window {
         top: 50px;
         left: 10px;
         width: 250px;
         max-height: 150px;
       }
 
-      .system-window-content {
+      .missing-messages-window {
+        right: 10px;
+        left: auto;
+      }
+
+      .system-window-content, .missing-messages-window-content {
         max-height: 120px;
         padding: 4px;
       }
 
-      .system-window-message {
+      .system-window-message, .missing-messages-window-message {
         font-size: 9px;
       }
     }
 
     @media (max-width: 480px) {
-      .system-window {
+      .system-window, .missing-messages-window {
         width: calc(100vw - 40px);
+      }
+      
+      .system-window {
         left: 10px;
+      }
+      
+      .missing-messages-window {
+        right: 10px;
+        left: auto;
+        top: 220px;
       }
     }
   </style>
@@ -512,6 +574,16 @@
   </div>
   <div class="system-window-content" id="systemContent">
     <div class="system-window-message">Welcome to RetroChat! Connecting to Waku network...</div>
+  </div>
+</div>
+
+<div class="missing-messages-window" id="missingMessagesWindow">
+  <div class="missing-messages-window-header">
+    <span class="missing-messages-window-title">MISSING MESSAGES</span>
+    <button class="missing-messages-window-toggle" id="missingMessagesToggle">−</button>
+  </div>
+  <div class="missing-messages-window-content" id="missingMessagesContent">
+    <div class="missing-messages-window-message">No missing messages detected</div>
   </div>
 </div>
 
@@ -550,6 +622,8 @@
       this.Chat2Message = null;
       this.hasShownConnectedMessage = false; // Track if we've shown the initial connection message
       this.seenMessages = new Set();
+      this.missingMessagesCount = 0;
+      this.seenMissingMessages = new Set(); // Track unique missing messages
 
       this.initProtobuf();
       this.initElements();
@@ -612,6 +686,12 @@
       this.systemToggle = document.getElementById('systemToggle');
       this.systemWindowHeader = this.systemWindow.querySelector('.system-window-header');
       
+      // Missing messages window elements
+      this.missingMessagesWindow = document.getElementById('missingMessagesWindow');
+      this.missingMessagesContent = document.getElementById('missingMessagesContent');
+      this.missingMessagesToggle = document.getElementById('missingMessagesToggle');
+      this.missingMessagesHeader = this.missingMessagesWindow.querySelector('.missing-messages-window-header');
+      
       // Set the generated nickname in the input field
       this.nicknameInput.value = this.nickname;
     }
@@ -650,8 +730,16 @@
         this.systemToggle.textContent = this.systemWindow.classList.contains('minimized') ? '+' : '−';
       });
 
+      // Missing messages window toggle
+      this.missingMessagesToggle.addEventListener('click', () => {
+        this.missingMessagesWindow.classList.toggle('minimized');
+        this.missingMessagesToggle.textContent = this.missingMessagesWindow.classList.contains('minimized') ? '+' : '−';
+      });
+
       // System window drag functionality
       this.initSystemWindowDrag();
+      // Missing messages window drag functionality
+      this.initMissingMessagesWindowDrag();
     }
 
     initSystemWindowDrag() {
@@ -756,6 +844,121 @@
       yOffset = parseInt(computedStyle.top) || 70;
     }
 
+    initMissingMessagesWindowDrag() {
+      let isDragging = false;
+      let currentX;
+      let currentY;
+      let initialX;
+      let initialY;
+      let xOffset = 0;
+      let yOffset = 0;
+
+      this.missingMessagesHeader.addEventListener('mousedown', (e) => {
+        if (e.target === this.missingMessagesToggle) return; // Don't drag when clicking the toggle button
+        
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+
+        if (e.target === this.missingMessagesHeader || e.target.parentNode === this.missingMessagesHeader) {
+          isDragging = true;
+          this.missingMessagesWindow.style.zIndex = '1002'; // Bring to front while dragging
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+
+          xOffset = currentX;
+          yOffset = currentY;
+
+          // Constrain to viewport bounds
+          const rect = this.missingMessagesWindow.getBoundingClientRect();
+          const maxX = window.innerWidth - rect.width;
+          const maxY = window.innerHeight - rect.height;
+          
+          xOffset = Math.max(0, Math.min(xOffset, maxX));
+          yOffset = Math.max(0, Math.min(yOffset, maxY));
+
+          this.missingMessagesWindow.style.left = xOffset + 'px';
+          this.missingMessagesWindow.style.top = yOffset + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          this.missingMessagesWindow.style.zIndex = '1001'; // Return to normal z-index
+        }
+      });
+
+      // Touch events for mobile
+      this.missingMessagesHeader.addEventListener('touchstart', (e) => {
+        if (e.target === this.missingMessagesToggle) return;
+        
+        const touch = e.touches[0];
+        initialX = touch.clientX - xOffset;
+        initialY = touch.clientY - yOffset;
+
+        if (e.target === this.missingMessagesHeader || e.target.parentNode === this.missingMessagesHeader) {
+          isDragging = true;
+          this.missingMessagesWindow.style.zIndex = '1002';
+        }
+      });
+
+      document.addEventListener('touchmove', (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          
+          const touch = e.touches[0];
+          currentX = touch.clientX - initialX;
+          currentY = touch.clientY - initialY;
+
+          xOffset = currentX;
+          yOffset = currentY;
+
+          // Constrain to viewport bounds
+          const rect = this.missingMessagesWindow.getBoundingClientRect();
+          const maxX = window.innerWidth - rect.width;
+          const maxY = window.innerHeight - rect.height;
+          
+          xOffset = Math.max(0, Math.min(xOffset, maxX));
+          yOffset = Math.max(0, Math.min(yOffset, maxY));
+
+          this.missingMessagesWindow.style.left = xOffset + 'px';
+          this.missingMessagesWindow.style.top = yOffset + 'px';
+        }
+      });
+
+      document.addEventListener('touchend', () => {
+        if (isDragging) {
+          isDragging = false;
+          this.missingMessagesWindow.style.zIndex = '1001';
+        }
+      });
+
+      // Initialize position from current CSS
+      const computedStyle = window.getComputedStyle(this.missingMessagesWindow);
+      const rightValue = parseInt(computedStyle.right);
+      if (!isNaN(rightValue)) {
+        xOffset = window.innerWidth - this.missingMessagesWindow.offsetWidth - rightValue;
+      } else {
+        xOffset = parseInt(computedStyle.left) || 20;
+      }
+      yOffset = parseInt(computedStyle.top) || 70;
+      this.missingMessagesWindow.style.left = xOffset + 'px';
+      this.missingMessagesWindow.style.right = 'auto';
+    }
+
+    // Utility function to convert bytes to hex string
+    bytesToHex(bytes) {
+      if (!bytes || bytes.length === 0) return '';
+      return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
     async initWaku() {
       try {
         this.updateStatus('Connecting...', 'connecting');
@@ -792,6 +995,11 @@
         // Subscribe to sent events
         this.reliableChannel.messageChannel.addEventListener("sds:out:sync-sent", (event) => {
           this.addSystemMessage(`Sync Message sent with history: ${event.detail.causalHistory.map((ch) => ch.messageId.toString().substring(0, 12))}...`);
+        })
+
+        // Subscribe to InMessageMissing events
+        this.reliableChannel.messageChannel.addEventListener("sds:in:message-missing", (event) => {
+          this.handleMissingMessages(event.detail);
         })
 
         this.messageInput.disabled = false;
@@ -1098,6 +1306,66 @@
 
     scrollToBottom() {
       this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+    }
+
+    handleMissingMessages(missingMessages) {
+      if (!missingMessages || missingMessages.length === 0) return;
+      
+      // Clear the "No missing messages" text if this is the first missing message
+      if (this.missingMessagesCount === 0) {
+        this.missingMessagesContent.innerHTML = '';
+      }
+      
+      missingMessages.forEach(({ messageId, retrievalHint }) => {
+        const messageIdHex = this.bytesToHex(messageId);
+        
+        // Check if we've already seen this message ID to avoid duplicates
+        if (this.seenMissingMessages.has(messageIdHex)) {
+          return; // Skip duplicate
+        }
+        
+        this.seenMissingMessages.add(messageIdHex);
+        this.missingMessagesCount++;
+        
+        const messageElement = document.createElement('div');
+        messageElement.className = 'missing-messages-window-message';
+        
+        const retrievalHintHex = retrievalHint ? this.bytesToHex(retrievalHint) : 'N/A';
+        
+        // Display shortened versions: first 8 chars of ID and first 12 chars of hint
+        const displayId = messageIdHex.length > 8 ? `${messageIdHex.substring(0, 8)}...` : messageIdHex;
+        const displayHint = retrievalHintHex.length > 12 ? `${retrievalHintHex.substring(0, 12)}...` : retrievalHintHex;
+        
+        messageElement.innerHTML = `
+          <span class="message-id">ID:${displayId}</span> | <span class="retrieval-hint">Hint:${displayHint}</span>
+        `;
+        
+        // Store full values as data attributes for potential future use
+        messageElement.dataset.fullId = messageIdHex;
+        messageElement.dataset.fullHint = retrievalHintHex;
+        
+        this.missingMessagesContent.appendChild(messageElement);
+        
+        // Auto-scroll to bottom of missing messages window
+        this.missingMessagesContent.scrollTop = this.missingMessagesContent.scrollHeight;
+        
+        // Limit the number of messages in missing messages window (keep last 30)
+        const messages = this.missingMessagesContent.querySelectorAll('.missing-messages-window-message');
+        if (messages.length > 30) {
+          const removedMessage = messages[0];
+          // Remove from seen set when removing from display
+          const removedId = removedMessage.dataset.fullId;
+          if (removedId) {
+            this.seenMissingMessages.delete(removedId);
+            this.missingMessagesCount--;
+          }
+          removedMessage.remove();
+        }
+      });
+      
+      // Update window title with count
+      const titleElement = this.missingMessagesWindow.querySelector('.missing-messages-window-title');
+      titleElement.textContent = `MISSING MESSAGES (${this.missingMessagesCount})`;
     }
   }
 

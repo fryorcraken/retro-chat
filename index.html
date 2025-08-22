@@ -634,6 +634,7 @@
       this.hasShownConnectedMessage = false; // Track if we've shown the initial connection message
       this.seenMessages = new Set();
       this.missingMessagesCount = 0;
+      this.recoveredMessagesCount = 0; // Track recovered messages
       this.seenMissingMessages = new Set(); // Track unique missing messages
       this.missingMessagesByHint = new Map(); // Map retrieval hint to message element for crossing out
       this.nicknameColors = new Map(); // Map nickname to color
@@ -1375,10 +1376,23 @@
       if (messageElement && !messageElement.classList.contains('received')) {
         // Cross out the message
         messageElement.classList.add('received');
+        this.recoveredMessagesCount++;
+        
+        // Update window title with new counts
+        this.updateMissingMessagesTitle();
         
         // Log for debugging
         console.log(`Missing message received: ${hashHex.substring(0, 12)}...`);
         this.addSystemMessage(`Missing message recovered: ${hashHex.substring(0, 12)}...`);
+      }
+    }
+
+    updateMissingMessagesTitle() {
+      const titleElement = this.missingMessagesWindow.querySelector('.missing-messages-window-title');
+      if (this.recoveredMessagesCount > 0) {
+        titleElement.textContent = `${this.missingMessagesCount} MISSING MESSAGES (${this.recoveredMessagesCount} RECOVERED)`;
+      } else {
+        titleElement.textContent = `${this.missingMessagesCount} MISSING MESSAGES`;
       }
     }
 
@@ -1438,6 +1452,10 @@
           if (removedId) {
             this.seenMissingMessages.delete(removedId);
             this.missingMessagesCount--;
+            // If this was a recovered message, decrement the recovered count
+            if (removedMessage.classList.contains('received')) {
+              this.recoveredMessagesCount--;
+            }
           }
           if (removedHint && removedHint !== 'N/A') {
             this.missingMessagesByHint.delete(removedHint);
@@ -1447,8 +1465,7 @@
       });
       
       // Update window title with count
-      const titleElement = this.missingMessagesWindow.querySelector('.missing-messages-window-title');
-      titleElement.textContent = `MISSING MESSAGES (${this.missingMessagesCount})`;
+      this.updateMissingMessagesTitle();
     }
   }
 

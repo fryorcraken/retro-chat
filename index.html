@@ -507,6 +507,19 @@
       opacity: 0.9;
     }
 
+    .missing-messages-window-message.received {
+      text-decoration: line-through;
+      opacity: 0.5;
+    }
+
+    .missing-messages-window-message.received .message-id {
+      color: #885500;
+    }
+
+    .missing-messages-window-message.received .retrieval-hint {
+      color: #884400;
+    }
+
     .system-window.minimized .system-window-content,
     .missing-messages-window.minimized .missing-messages-window-content {
       display: none;
@@ -624,6 +637,7 @@
       this.seenMessages = new Set();
       this.missingMessagesCount = 0;
       this.seenMissingMessages = new Set(); // Track unique missing messages
+      this.missingMessagesByHint = new Map(); // Map retrieval hint to message element for crossing out
 
       this.initProtobuf();
       this.initElements();
@@ -1161,6 +1175,12 @@
       try {
         if (!wakuMessage.payload || !wakuMessage.payload.length || !this.Chat2Message) return;
 
+        // Check if this message's hash matches any missing message retrieval hints
+        if (wakuMessage.hash) {
+          const hashHex = this.bytesToHex(wakuMessage.hash);
+          this.markMissingMessageAsReceived(hashHex);
+        }
+
         // Abusing an API :]
         const messageId = ReliableChannel.getMessageId(wakuMessage.payload)
         // We already processed this message
@@ -1308,6 +1328,19 @@
       this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     }
 
+    markMissingMessageAsReceived(hashHex) {
+      // Check if we have a missing message with this retrieval hint
+      const messageElement = this.missingMessagesByHint.get(hashHex);
+      if (messageElement && !messageElement.classList.contains('received')) {
+        // Cross out the message
+        messageElement.classList.add('received');
+        
+        // Log for debugging
+        console.log(`Missing message received: ${hashHex.substring(0, 12)}...`);
+        this.addSystemMessage(`Missing message recovered: ${hashHex.substring(0, 12)}...`);
+      }
+    }
+
     handleMissingMessages(missingMessages) {
       if (!missingMessages || missingMessages.length === 0) return;
       
@@ -1344,6 +1377,11 @@
         messageElement.dataset.fullId = messageIdHex;
         messageElement.dataset.fullHint = retrievalHintHex;
         
+        // Store in map for quick lookup by retrieval hint
+        if (retrievalHintHex !== 'N/A') {
+          this.missingMessagesByHint.set(retrievalHintHex, messageElement);
+        }
+        
         this.missingMessagesContent.appendChild(messageElement);
         
         // Auto-scroll to bottom of missing messages window
@@ -1355,9 +1393,13 @@
           const removedMessage = messages[0];
           // Remove from seen set when removing from display
           const removedId = removedMessage.dataset.fullId;
+          const removedHint = removedMessage.dataset.fullHint;
           if (removedId) {
             this.seenMissingMessages.delete(removedId);
             this.missingMessagesCount--;
+          }
+          if (removedHint && removedHint !== 'N/A') {
+            this.missingMessagesByHint.delete(removedHint);
           }
           removedMessage.remove();
         }

@@ -633,6 +633,7 @@
       this.Chat2Message = null;
       this.hasShownConnectedMessage = false; // Track if we've shown the initial connection message
       this.seenMessages = new Set();
+      this.localSentMessages = new Map(); // Track messages we sent locally with their chat message IDs
       this.missingMessagesCount = 0;
       this.recoveredMessagesCount = 0; // Track recovered messages
       this.seenMissingMessages = new Set(); // Track unique missing messages
@@ -1179,6 +1180,9 @@
         const protoMessage = this.Chat2Message.create(message);
         const payload = this.Chat2Message.encode(protoMessage).finish();
         const messageId = ReliableChannel.getMessageId(payload)
+        
+        // Track this message as locally sent
+        this.localSentMessages.set(messageId, chatMessageId);
 
         this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageSent, (event) => {
           if (messageId === event.detail)
@@ -1237,10 +1241,18 @@
         };
         console.log("decoded message", message);
 
-        // Only add if it's not from ourselves (to avoid duplicates)
-        if (message.sender !== this.nickname) {
-          this.addChatMessage(message);
+        // Check if this is our own message that we already displayed locally
+        if (message.sender === this.nickname) {
+          // If we already sent and displayed this message locally, skip it
+          if (this.localSentMessages.has(messageId)) {
+            console.log("Skipping own message already displayed locally:", messageId);
+            return;
+          }
+          // Otherwise, this is our own message from another session or device, display it
         }
+        
+        // Add the message to chat
+        this.addChatMessage(message);
 
       } catch (error) {
         console.error('Failed to process incoming message:', error);

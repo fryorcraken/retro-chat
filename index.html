@@ -1534,8 +1534,6 @@
     handleIncomingMessage(wakuMessage) {
       console.log("handling incoming message", wakuMessage)
       try {
-        if (!wakuMessage.payload || !wakuMessage.payload.length || !this.Chat2Message) return;
-
         // Check if this message's hash matches any missing message retrieval hints
         // The retrieval hint should be the message ID itself
         const messageId = ReliableChannel.getMessageId(wakuMessage.payload)

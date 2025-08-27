@@ -795,7 +795,8 @@
   import {
     createLightNode,
     ReliableChannelEvent,
-    ReliableChannel
+    ReliableChannel,
+    HealthStatus
   } from 'https://unpkg.com/@waku/sdk@0.0.35-921b65f.0/bundle/index.js';
 
   // Define protobuf schema
@@ -1387,11 +1388,11 @@
       // Use provided health status or get current health status
       const status = healthStatus || this.node?.health || 'Unhealthy';
 
-      if (status === 'SufficientlyHealthy') {
+      if (status === HealthStatus.SufficientlyHealthy) {
         this.updateStatus('Connected', 'connected');
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;
-      } else if (status === 'MinimallyHealthy') {
+      } else if (status === HealthStatus.MinimallyHealthy) {
         this.updateStatus('Connected-ish', 'connecting');
         this.messageInput.disabled = false;
         this.sendButton.disabled = false;

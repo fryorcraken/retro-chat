@@ -137,17 +137,17 @@
         bottom: calc(80px + env(safe-area-inset-bottom, 0px));
         padding: 6px 15px;
       }
-      
+
       .reply-indicator-content {
         font-size: 11px;
       }
-      
+
       .cancel-reply {
         font-size: 11px;
         padding: 3px 6px;
       }
     }
-    
+
     /* Mobile optimizations */
     @media (max-width: 768px) {
       .header {
@@ -246,7 +246,7 @@
     .message-content {
       flex: 1;
     }
-    
+
     .reply-button {
       display: none;
       position: absolute;
@@ -262,17 +262,17 @@
       background: rgba(0, 17, 0, 0.8);
       transition: opacity 0.2s, border-color 0.2s;
     }
-    
+
     .message:hover .reply-button {
       display: block;
     }
-    
+
     .reply-button:hover {
       opacity: 1;
       border-color: #00ff00;
       box-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
     }
-    
+
     @media (max-width: 768px) {
       .reply-button {
         display: block;
@@ -281,7 +281,7 @@
         right: 20px;
       }
     }
-    
+
     .reply-preview {
       border-left: 2px solid #00ff00;
       padding-left: 10px;
@@ -291,17 +291,17 @@
       cursor: pointer;
       transition: opacity 0.2s, background 0.2s;
     }
-    
+
     .reply-preview:hover {
       opacity: 0.9;
       background: rgba(0, 255, 0, 0.05);
     }
-    
+
     .reply-preview .reply-nick {
       color: #00ffff;
       font-weight: bold;
     }
-    
+
     .reply-preview .reply-text {
       color: #88ff88;
       max-width: 300px;
@@ -311,11 +311,11 @@
       display: inline-block;
       vertical-align: bottom;
     }
-    
+
     .message.highlight {
       animation: messageHighlight 2s ease-out;
     }
-    
+
     @keyframes messageHighlight {
       0% {
         background: rgba(0, 255, 0, 0.3);
@@ -330,16 +330,16 @@
         transform: scale(1);
       }
     }
-    
+
     .reply-preview.not-found {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    
+
     .reply-preview.not-found:hover {
       background: rgba(255, 0, 0, 0.05);
     }
-    
+
     .reply-indicator {
       position: fixed;
       bottom: 80px;
@@ -355,11 +355,11 @@
       z-index: 999;
       animation: slideUp 0.2s ease-out;
     }
-    
+
     .reply-indicator.active {
       display: flex;
     }
-    
+
     @keyframes slideUp {
       from {
         transform: translateY(100%);
@@ -370,23 +370,23 @@
         opacity: 1;
       }
     }
-    
+
     .reply-indicator-content {
       flex: 1;
       color: #00ff00;
       font-size: 12px;
     }
-    
+
     .reply-indicator-nick {
       color: #00ffff;
       font-weight: bold;
     }
-    
+
     .reply-indicator-text {
       color: #88ff88;
       opacity: 0.8;
     }
-    
+
     .cancel-reply {
       background: none;
       border: 1px solid #ff0000;
@@ -397,7 +397,7 @@
       font-size: 12px;
       transition: all 0.2s;
     }
-    
+
     .cancel-reply:hover {
       background: #ff0000;
       color: #000;
@@ -427,8 +427,12 @@
     }
 
     @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .timestamp {
@@ -725,11 +729,11 @@
         width: calc(100vw - 40px);
         right: 10px;
       }
-      
+
       .system-window {
         top: 50px;
       }
-      
+
       .missing-messages-window {
         top: 210px;
       }
@@ -775,7 +779,7 @@
 
 <div class="reply-indicator" id="replyIndicator">
   <div class="reply-indicator-content">
-    Replying to <span class="reply-indicator-nick" id="replyNick"></span>: 
+    Replying to <span class="reply-indicator-nick" id="replyNick"></span>:
     <span class="reply-indicator-text" id="replyText"></span>
   </div>
   <button class="cancel-reply" id="cancelReply">✕</button>
@@ -853,16 +857,16 @@
         'Cyber', 'Neon', 'Retro', 'Pixel', 'Code', 'Data', 'Hack', 'Tech',
         'Digital', 'Binary', 'Matrix', 'Quantum', 'Neural', 'Crypto', 'Synth'
       ];
-      
+
       const nouns = [
         'Hacker', 'Terminal', 'Gamer', 'Wizard', 'Ninja', 'Ghost', 'Runner',
         'Rider', 'Walker', 'Coder', 'Byte', 'Node', 'Core', 'Link', 'Net'
       ];
-      
+
       const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
       const noun = nouns[Math.floor(Math.random() * nouns.length)];
       const number = Math.floor(Math.random() * 100);
-      
+
       const nickname = `${adjective}${noun}${number}`;
       this.saveNickname(nickname);
       return nickname;
@@ -884,19 +888,19 @@
       this.systemContent = document.getElementById('systemContent');
       this.systemToggle = document.getElementById('systemToggle');
       this.systemWindowHeader = this.systemWindow.querySelector('.system-window-header');
-      
+
       // Missing messages window elements
       this.missingMessagesWindow = document.getElementById('missingMessagesWindow');
       this.missingMessagesContent = document.getElementById('missingMessagesContent');
       this.missingMessagesToggle = document.getElementById('missingMessagesToggle');
       this.missingMessagesHeader = this.missingMessagesWindow.querySelector('.missing-messages-window-header');
-      
+
       // Reply indicator elements
       this.replyIndicator = document.getElementById('replyIndicator');
       this.replyNick = document.getElementById('replyNick');
       this.replyText = document.getElementById('replyText');
       this.cancelReplyButton = document.getElementById('cancelReply');
-      
+
       // Set the generated nickname in the input field
       this.nicknameInput.value = this.nickname;
     }
@@ -940,10 +944,10 @@
         this.missingMessagesWindow.classList.toggle('minimized');
         this.missingMessagesToggle.textContent = this.missingMessagesWindow.classList.contains('minimized') ? '+' : '−';
       });
-      
+
       // Reply functionality
       this.cancelReplyButton.addEventListener('click', () => this.cancelReply());
-      
+
       // Escape key to cancel reply
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && this.replyingTo) {
@@ -968,7 +972,7 @@
 
       this.systemWindowHeader.addEventListener('mousedown', (e) => {
         if (e.target === this.systemToggle) return; // Don't drag when clicking the toggle button
-        
+
         initialX = e.clientX - xOffset;
         initialY = e.clientY - yOffset;
 
@@ -981,7 +985,7 @@
       document.addEventListener('mousemove', (e) => {
         if (isDragging) {
           e.preventDefault();
-          
+
           currentX = e.clientX - initialX;
           currentY = e.clientY - initialY;
 
@@ -992,7 +996,7 @@
           const rect = this.systemWindow.getBoundingClientRect();
           const maxX = window.innerWidth - rect.width;
           const maxY = window.innerHeight - rect.height;
-          
+
           xOffset = Math.max(0, Math.min(xOffset, maxX));
           yOffset = Math.max(0, Math.min(yOffset, maxY));
 
@@ -1012,7 +1016,7 @@
       // Touch events for mobile
       this.systemWindowHeader.addEventListener('touchstart', (e) => {
         if (e.target === this.systemToggle) return;
-        
+
         const touch = e.touches[0];
         initialX = touch.clientX - xOffset;
         initialY = touch.clientY - yOffset;
@@ -1026,7 +1030,7 @@
       document.addEventListener('touchmove', (e) => {
         if (isDragging) {
           e.preventDefault();
-          
+
           const touch = e.touches[0];
           currentX = touch.clientX - initialX;
           currentY = touch.clientY - initialY;
@@ -1038,7 +1042,7 @@
           const rect = this.systemWindow.getBoundingClientRect();
           const maxX = window.innerWidth - rect.width;
           const maxY = window.innerHeight - rect.height;
-          
+
           xOffset = Math.max(0, Math.min(xOffset, maxX));
           yOffset = Math.max(0, Math.min(yOffset, maxY));
 
@@ -1077,7 +1081,7 @@
 
       this.missingMessagesHeader.addEventListener('mousedown', (e) => {
         if (e.target === this.missingMessagesToggle) return; // Don't drag when clicking the toggle button
-        
+
         initialX = e.clientX - xOffset;
         initialY = e.clientY - yOffset;
 
@@ -1090,7 +1094,7 @@
       document.addEventListener('mousemove', (e) => {
         if (isDragging) {
           e.preventDefault();
-          
+
           currentX = e.clientX - initialX;
           currentY = e.clientY - initialY;
 
@@ -1101,7 +1105,7 @@
           const rect = this.missingMessagesWindow.getBoundingClientRect();
           const maxX = window.innerWidth - rect.width;
           const maxY = window.innerHeight - rect.height;
-          
+
           xOffset = Math.max(0, Math.min(xOffset, maxX));
           yOffset = Math.max(0, Math.min(yOffset, maxY));
 
@@ -1121,7 +1125,7 @@
       // Touch events for mobile
       this.missingMessagesHeader.addEventListener('touchstart', (e) => {
         if (e.target === this.missingMessagesToggle) return;
-        
+
         const touch = e.touches[0];
         initialX = touch.clientX - xOffset;
         initialY = touch.clientY - yOffset;
@@ -1135,7 +1139,7 @@
       document.addEventListener('touchmove', (e) => {
         if (isDragging) {
           e.preventDefault();
-          
+
           const touch = e.touches[0];
           currentX = touch.clientX - initialX;
           currentY = touch.clientY - initialY;
@@ -1147,7 +1151,7 @@
           const rect = this.missingMessagesWindow.getBoundingClientRect();
           const maxX = window.innerWidth - rect.width;
           const maxY = window.innerHeight - rect.height;
-          
+
           xOffset = Math.max(0, Math.min(xOffset, maxX));
           yOffset = Math.max(0, Math.min(yOffset, maxY));
 
@@ -1180,7 +1184,7 @@
       if (!bytes || bytes.length === 0) return '';
       return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
     }
-    
+
     // Reply functionality methods
     startReply(messageId, nick, text) {
       this.replyingTo = {
@@ -1188,43 +1192,43 @@
         nick: nick,
         text: text
       };
-      
+
       this.replyNick.textContent = nick;
       this.replyText.textContent = text.length > 50 ? text.substring(0, 50) + '...' : text;
       this.replyIndicator.classList.add('active');
       this.messageInput.focus();
     }
-    
+
     cancelReply() {
       this.replyingTo = null;
       this.replyIndicator.classList.remove('active');
     }
-    
+
     generateMessageId() {
       return Date.now() + '-' + Math.random().toString(36).substring(2, 15);
     }
-    
+
     jumpToMessage(messageId) {
       const messageElement = this.chatContainer.querySelector(`[data-message-id="${messageId}"]`);
-      
+
       if (messageElement) {
         // Scroll to the message
-        messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
+        messageElement.scrollIntoView({behavior: 'smooth', block: 'center'});
+
         // Remove any existing highlight
         const previousHighlight = this.chatContainer.querySelector('.message.highlight');
         if (previousHighlight) {
           previousHighlight.classList.remove('highlight');
         }
-        
+
         // Add highlight animation
         messageElement.classList.add('highlight');
-        
+
         // Remove highlight class after animation completes
         setTimeout(() => {
           messageElement.classList.remove('highlight');
         }, 2000);
-        
+
         return true;
       } else {
         // Message not found in current view
@@ -1240,7 +1244,7 @@
       if (this.nicknameColors.has(nickname)) {
         return this.nicknameColors.get(nickname);
       }
-      
+
       // Define a palette of retro terminal colors
       const colors = [
         '#00ffff', // cyan
@@ -1259,7 +1263,7 @@
         '#00ffaa', // aqua
         '#ff55ff', // light magenta
       ];
-      
+
       // Generate a deterministic index based on nickname
       let hash = 0;
       for (let i = 0; i < nickname.length; i++) {
@@ -1268,7 +1272,7 @@
       }
       const colorIndex = Math.abs(hash) % colors.length;
       const color = colors[colorIndex];
-      
+
       // Cache the color
       this.nicknameColors.set(nickname, color);
       return color;
@@ -1277,7 +1281,7 @@
     // Insert message in chronological order
     insertMessageInOrder(messageElement, timestamp) {
       const messages = this.chatContainer.querySelectorAll('.message');
-      
+
       // Find the correct position to insert the message
       let insertBefore = null;
       for (const existingMessage of messages) {
@@ -1287,7 +1291,7 @@
           break;
         }
       }
-      
+
       // Insert at the found position or at the end if no position found
       if (insertBefore) {
         this.chatContainer.insertBefore(messageElement, insertBefore);
@@ -1302,13 +1306,13 @@
 
         // Create Waku node with custom bootstrap peers
         const customBootstrap = '/dns4/waku.fryorcraken.xyz/tcp/8000/wss/p2p/16Uiu2HAmMRvhDHrtiHft1FTUYnn6cVA8AWVrTyLUayJJ3MWpUZDB';
-        this.node = await createLightNode({ 
+        this.node = await createLightNode({
           defaultBootstrap: true,
           bootstrapPeers: [customBootstrap]
         });
 
-        const encoder = this.node.createEncoder({ contentTopic: this.contentTopic });
-        const decoder = this.node.createDecoder({ contentTopic: this.contentTopic });
+        const encoder = this.node.createEncoder({contentTopic: this.contentTopic});
+        const decoder = this.node.createDecoder({contentTopic: this.contentTopic});
         this.reliableChannel = await ReliableChannel.create(this.node, "retro-chat-channel", this.nickname, encoder, decoder)
 
         // Set up event listeners for connection state changes
@@ -1368,13 +1372,13 @@
 
     handleHealthChange(healthStatus) {
       this.updateConnectionStatus(healthStatus);
-      
+
       // Show connection message when first achieving healthy status
       if (!this.hasShownConnectedMessage && healthStatus !== 'Unhealthy') {
         this.hasShownConnectedMessage = true;
         this.addSystemMessage('Connected to Waku network! You can now chat.');
       }
-      
+
       // Log health status changes
       this.addConnectionMessage(`Health status: ${healthStatus}`);
     }
@@ -1382,7 +1386,7 @@
     updateConnectionStatus(healthStatus) {
       // Use provided health status or get current health status
       const status = healthStatus || this.node?.health || 'Unhealthy';
-      
+
       if (status === 'SufficientlyHealthy') {
         this.updateStatus('Connected', 'connected');
         this.messageInput.disabled = false;
@@ -1396,7 +1400,7 @@
         this.messageInput.disabled = true;
         this.sendButton.disabled = true;
       }
-      
+
       // Update tooltip with health status
       this.updateHealthTooltip(status);
     }
@@ -1408,7 +1412,7 @@
         'MinimallyHealthy': 'Basic connectivity established',
         'SufficientlyHealthy': 'Good connectivity to network'
       };
-      
+
       const description = statusDescriptions[healthStatus] || 'Unknown status';
       this.statusTooltip.innerHTML = `<span class="tooltip-protocol">Status: ${healthStatus}</span><span class="tooltip-protocol">${description}</span>`;
     }
@@ -1418,7 +1422,7 @@
       const tooltip = this.status.querySelector('.tooltip');
       this.status.textContent = text;
       this.status.className = `status ${className}`;
-      
+
       // Re-append the tooltip if it existed
       if (tooltip) {
         this.status.appendChild(tooltip);
@@ -1449,14 +1453,14 @@
         messageId: chatMessageId,
         status: 'sending'
       };
-      
+
       // Add reply data if replying
       if (this.replyingTo) {
         messageData.replyToMessageId = this.replyingTo.messageId;
         messageData.replyToNick = this.replyingTo.nick;
         messageData.replyToText = this.replyingTo.text;
       }
-      
+
       const messageElement = this.addChatMessageWithStatus(messageData);
 
       try {
@@ -1466,7 +1470,7 @@
           nick: this.nickname,
           payload: new TextEncoder().encode(originalText)
         };
-        
+
         // Add reply fields if replying
         if (this.replyingTo) {
           message.replyToMessageId = this.replyingTo.messageId;
@@ -1478,27 +1482,36 @@
         const protoMessage = this.Chat2Message.create(message);
         const payload = this.Chat2Message.encode(protoMessage).finish();
         const messageId = ReliableChannel.getMessageId(payload)
-        
+
         // Track this message as locally sent
         this.localSentMessages.set(messageId, chatMessageId);
 
+        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageIrrecoverableError, (event) => {
+          if (messageId === event.detail.messageId) {
+            console.error('Failed to send message:', event.detail.error);
+            this.addSystemMessage(`Failed to send message: ${event.detail.error}`);
+          }
+        })
+
         this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageSent, (event) => {
-          if (messageId === event.detail)
+          if (messageId === event.detail) {
             this.updateMessageStatus(chatMessageId, 'sent');
+            // Clear reply after successful send
+            if (this.replyingTo) {
+              this.cancelReply();
+            }
+          }
         })
 
         this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageAcknowledged, (event) => {
           console.log("received ack", event.detail)
-          if (messageId === event.detail)
+          if (messageId === event.detail) {
             this.updateMessageStatus(chatMessageId, 'acknowledged');
+          }
         })
 
-        await this.reliableChannel.send(payload);
-        
-        // Clear reply after successful send
-        if (this.replyingTo) {
-          this.cancelReply();
-        }
+        // Send the message
+        this.reliableChannel.send(payload);
 
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -1526,10 +1539,10 @@
         // The retrieval hint should be the message ID itself
         const messageId = ReliableChannel.getMessageId(wakuMessage.payload)
         const messageIdHex = this.bytesToHex(messageId);
-        
+
         // Mark this message as recovered if it was in the missing messages list
         this.markMissingMessageAsReceived(messageIdHex);
-        
+
         // Also check if wakuMessage has a hash property for alternative matching
         if (wakuMessage.hash) {
           const hashHex = this.bytesToHex(wakuMessage.hash);
@@ -1549,14 +1562,14 @@
           text: new TextDecoder().decode(decodedMessage.payload),
           messageId: this.generateMessageId() // Generate ID for this message
         };
-        
+
         // Add reply fields if present
         if (decodedMessage.replyToMessageId) {
           message.replyToMessageId = decodedMessage.replyToMessageId;
           message.replyToNick = decodedMessage.replyToNick;
           message.replyToText = decodedMessage.replyToText;
         }
-        
+
         console.log("decoded message", message);
 
         // Check if this is our own message that we already displayed locally
@@ -1568,7 +1581,7 @@
           }
           // Otherwise, this is our own message from another session or device, display it
         }
-        
+
         // Add the message to chat
         this.addChatMessage(message);
 
@@ -1586,7 +1599,7 @@
 
       const timestamp = this.formatTimestamp(message.timestamp);
       const senderColor = this.getNicknameColor(message.sender);
-      
+
       let replyPreview = '';
       if (message.replyToMessageId) {
         replyPreview = `
@@ -1606,7 +1619,7 @@
         </div>
         <button class="reply-button">[Reply]</button>
       `;
-      
+
       // Add click handler for reply preview
       const replyPreviewElement = messageElement.querySelector('.reply-preview');
       if (replyPreviewElement) {
@@ -1622,7 +1635,7 @@
           }
         });
       }
-      
+
       // Add reply button click handler
       const replyButton = messageElement.querySelector('.reply-button');
       if (replyButton) {
@@ -1630,7 +1643,7 @@
           this.startReply(message.messageId, message.sender, message.text);
         });
       }
-      
+
       // Store message for future reply references
       this.messagesByMessageId.set(message.messageId, message);
 
@@ -1652,7 +1665,7 @@
 
       const statusIcon = message.status === 'sending' ? '◐' : '✓';
       const statusClass = message.status;
-      
+
       let replyPreview = '';
       if (message.replyToMessageId) {
         replyPreview = `
@@ -1673,7 +1686,7 @@
         <button class="reply-button">[Reply]</button>
         <div class="message-status ${statusClass}">${statusIcon}</div>
       `;
-      
+
       // Add click handler for reply preview
       const replyPreviewElement = messageElement.querySelector('.reply-preview');
       if (replyPreviewElement) {
@@ -1689,7 +1702,7 @@
           }
         });
       }
-      
+
       // Add reply button click handler
       const replyButton = messageElement.querySelector('.reply-button');
       if (replyButton) {
@@ -1697,7 +1710,7 @@
           this.startReply(message.messageId, message.sender, message.text);
         });
       }
-      
+
       // Store message for future reply references
       this.messagesByMessageId.set(message.messageId, message);
 
@@ -1739,7 +1752,7 @@
       messageElement.textContent = text;
 
       this.systemContent.appendChild(messageElement);
-      
+
       // Auto-scroll to bottom of system window
       this.systemContent.scrollTop = this.systemContent.scrollHeight;
 
@@ -1753,18 +1766,18 @@
     formatTimestamp(timestamp) {
       const messageDate = new Date(timestamp);
       const today = new Date();
-      
+
       // Check if the message is from today
       const isToday = messageDate.toDateString() === today.toDateString();
-      
+
       if (isToday) {
         // Show only time for today's messages
-        return messageDate.toLocaleTimeString([], { hour12: false });
+        return messageDate.toLocaleTimeString([], {hour12: false});
       } else {
         // Show date and time for messages from other days
-        return messageDate.toLocaleString([], { 
+        return messageDate.toLocaleString([], {
           year: 'numeric',
-          month: '2-digit', 
+          month: '2-digit',
           day: '2-digit',
           hour: '2-digit',
           minute: '2-digit',
@@ -1793,10 +1806,10 @@
             // Cross out the message
             messageElement.classList.add('received');
             this.recoveredMessagesCount++;
-            
+
             // Update window title with new counts
             this.updateMissingMessagesTitle();
-            
+
             // Log for debugging
             console.log(`Missing message received: ${messageIdHex.substring(0, 12)}...`);
             this.addSystemMessage(`Missing message recovered: ${messageIdHex.substring(0, 12)}...`);
@@ -1804,17 +1817,17 @@
           }
         }
       }
-      
+
       // Also check by retrieval hint (backwards compatibility)
       const messageElement = this.missingMessagesByHint.get(messageIdHex);
       if (messageElement && !messageElement.classList.contains('received')) {
         // Cross out the message
         messageElement.classList.add('received');
         this.recoveredMessagesCount++;
-        
+
         // Update window title with new counts
         this.updateMissingMessagesTitle();
-        
+
         // Log for debugging
         console.log(`Missing message received via hint: ${messageIdHex.substring(0, 12)}...`);
         this.addSystemMessage(`Missing message recovered via hint: ${messageIdHex.substring(0, 12)}...`);
@@ -1832,50 +1845,50 @@
 
     handleMissingMessages(missingMessages) {
       if (!missingMessages || missingMessages.length === 0) return;
-      
+
       // Clear the "No missing messages" text if this is the first missing message
       if (this.missingMessagesCount === 0) {
         this.missingMessagesContent.innerHTML = '';
       }
-      
-      missingMessages.forEach(({ messageId, retrievalHint }) => {
+
+      missingMessages.forEach(({messageId, retrievalHint}) => {
         const messageIdHex = this.bytesToHex(messageId);
-        
+
         // Check if we've already seen this message ID to avoid duplicates
         if (this.seenMissingMessages.has(messageIdHex)) {
           return; // Skip duplicate
         }
-        
+
         this.seenMissingMessages.add(messageIdHex);
         this.missingMessagesCount++;
-        
+
         const messageElement = document.createElement('div');
         messageElement.className = 'missing-messages-window-message';
-        
+
         const retrievalHintHex = retrievalHint ? this.bytesToHex(retrievalHint) : 'N/A';
-        
+
         // Display shortened versions: first 8 chars of ID and first 12 chars of hint
         const displayId = messageIdHex.length > 8 ? `${messageIdHex.substring(0, 8)}...` : messageIdHex;
         const displayHint = retrievalHintHex.length > 12 ? `${retrievalHintHex.substring(0, 12)}...` : retrievalHintHex;
-        
+
         messageElement.innerHTML = `
           <span class="message-id">ID:${displayId}</span> | <span class="retrieval-hint">Hint:${displayHint}</span>
         `;
-        
+
         // Store full values as data attributes for potential future use
         messageElement.dataset.fullId = messageIdHex;
         messageElement.dataset.fullHint = retrievalHintHex;
-        
+
         // Store in map for quick lookup by retrieval hint
         if (retrievalHintHex !== 'N/A') {
           this.missingMessagesByHint.set(retrievalHintHex, messageElement);
         }
-        
+
         this.missingMessagesContent.appendChild(messageElement);
-        
+
         // Auto-scroll to bottom of missing messages window
         this.missingMessagesContent.scrollTop = this.missingMessagesContent.scrollHeight;
-        
+
         // Limit the number of messages in missing messages window (keep last 30)
         const messages = this.missingMessagesContent.querySelectorAll('.missing-messages-window-message');
         if (messages.length > 30) {
@@ -1897,7 +1910,7 @@
           removedMessage.remove();
         }
       });
-      
+
       // Update window title with count
       this.updateMissingMessagesTitle();
     }

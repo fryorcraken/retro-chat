@@ -1518,13 +1518,19 @@
         if (!wakuMessage.payload || !wakuMessage.payload.length || !this.Chat2Message) return;
 
         // Check if this message's hash matches any missing message retrieval hints
+        // The retrieval hint should be the message ID itself
+        const messageId = ReliableChannel.getMessageId(wakuMessage.payload)
+        const messageIdHex = this.bytesToHex(messageId);
+        
+        // Mark this message as recovered if it was in the missing messages list
+        this.markMissingMessageAsReceived(messageIdHex);
+        
+        // Also check if wakuMessage has a hash property for alternative matching
         if (wakuMessage.hash) {
           const hashHex = this.bytesToHex(wakuMessage.hash);
           this.markMissingMessageAsReceived(hashHex);
         }
 
-        // Abusing an API :]
-        const messageId = ReliableChannel.getMessageId(wakuMessage.payload)
         // We already processed this message
         if (this.seenMessages.has(messageId)) return;
 
@@ -1772,9 +1778,30 @@
       this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     }
 
-    markMissingMessageAsReceived(hashHex) {
-      // Check if we have a missing message with this retrieval hint
-      const messageElement = this.missingMessagesByHint.get(hashHex);
+    markMissingMessageAsReceived(messageIdHex) {
+      // Check if we have this message ID in our seen missing messages set
+      if (this.seenMissingMessages.has(messageIdHex)) {
+        // Find the message element by iterating through the missing messages
+        const messageElements = this.missingMessagesContent.querySelectorAll('.missing-messages-window-message');
+        for (const messageElement of messageElements) {
+          if (messageElement.dataset.fullId === messageIdHex && !messageElement.classList.contains('received')) {
+            // Cross out the message
+            messageElement.classList.add('received');
+            this.recoveredMessagesCount++;
+            
+            // Update window title with new counts
+            this.updateMissingMessagesTitle();
+            
+            // Log for debugging
+            console.log(`Missing message received: ${messageIdHex.substring(0, 12)}...`);
+            this.addSystemMessage(`Missing message recovered: ${messageIdHex.substring(0, 12)}...`);
+            break;
+          }
+        }
+      }
+      
+      // Also check by retrieval hint (backwards compatibility)
+      const messageElement = this.missingMessagesByHint.get(messageIdHex);
       if (messageElement && !messageElement.classList.contains('received')) {
         // Cross out the message
         messageElement.classList.add('received');
@@ -1784,8 +1811,8 @@
         this.updateMissingMessagesTitle();
         
         // Log for debugging
-        console.log(`Missing message received: ${hashHex.substring(0, 12)}...`);
-        this.addSystemMessage(`Missing message recovered: ${hashHex.substring(0, 12)}...`);
+        console.log(`Missing message received via hint: ${messageIdHex.substring(0, 12)}...`);
+        this.addSystemMessage(`Missing message recovered via hint: ${messageIdHex.substring(0, 12)}...`);
       }
     }
 

@@ -553,7 +553,7 @@
     .system-window, .missing-messages-window {
       position: fixed;
       top: 70px;
-      left: 20px;
+      right: 20px;
       width: 300px;
       max-height: 250px;
       background: rgba(0, 17, 0, 0.95);
@@ -566,9 +566,8 @@
     }
 
     .missing-messages-window {
-      top: 70px;
+      top: 330px;
       right: 20px;
-      left: auto;
       border-color: #ff6600;
       box-shadow: 0 0 15px rgba(255, 102, 0, 0.3);
     }
@@ -701,14 +700,14 @@
     @media (max-width: 768px) {
       .system-window, .missing-messages-window {
         top: 50px;
-        left: 10px;
+        right: 10px;
         width: 250px;
         max-height: 150px;
       }
 
       .missing-messages-window {
+        top: 210px;
         right: 10px;
-        left: auto;
       }
 
       .system-window-content, .missing-messages-window-content {
@@ -724,16 +723,15 @@
     @media (max-width: 480px) {
       .system-window, .missing-messages-window {
         width: calc(100vw - 40px);
+        right: 10px;
       }
       
       .system-window {
-        left: 10px;
+        top: 50px;
       }
       
       .missing-messages-window {
-        right: 10px;
-        left: auto;
-        top: 220px;
+        top: 210px;
       }
     }
   </style>
@@ -1000,6 +998,7 @@
 
           this.systemWindow.style.left = xOffset + 'px';
           this.systemWindow.style.top = yOffset + 'px';
+          this.systemWindow.style.right = 'auto'; // Clear right positioning when dragging
         }
       });
 
@@ -1045,6 +1044,7 @@
 
           this.systemWindow.style.left = xOffset + 'px';
           this.systemWindow.style.top = yOffset + 'px';
+          this.systemWindow.style.right = 'auto'; // Clear right positioning when dragging
         }
       });
 
@@ -1057,7 +1057,12 @@
 
       // Initialize position from current CSS
       const computedStyle = window.getComputedStyle(this.systemWindow);
-      xOffset = parseInt(computedStyle.left) || 20;
+      const rightValue = parseInt(computedStyle.right);
+      if (!isNaN(rightValue)) {
+        xOffset = window.innerWidth - this.systemWindow.offsetWidth - rightValue;
+      } else {
+        xOffset = parseInt(computedStyle.left) || (window.innerWidth - this.systemWindow.offsetWidth - 20);
+      }
       yOffset = parseInt(computedStyle.top) || 70;
     }
 
@@ -1102,6 +1107,7 @@
 
           this.missingMessagesWindow.style.left = xOffset + 'px';
           this.missingMessagesWindow.style.top = yOffset + 'px';
+          this.missingMessagesWindow.style.right = 'auto'; // Clear right positioning when dragging
         }
       });
 
@@ -1147,6 +1153,7 @@
 
           this.missingMessagesWindow.style.left = xOffset + 'px';
           this.missingMessagesWindow.style.top = yOffset + 'px';
+          this.missingMessagesWindow.style.right = 'auto'; // Clear right positioning when dragging
         }
       });
 
@@ -1163,11 +1170,9 @@
       if (!isNaN(rightValue)) {
         xOffset = window.innerWidth - this.missingMessagesWindow.offsetWidth - rightValue;
       } else {
-        xOffset = parseInt(computedStyle.left) || 20;
+        xOffset = parseInt(computedStyle.left) || (window.innerWidth - this.missingMessagesWindow.offsetWidth - 20);
       }
-      yOffset = parseInt(computedStyle.top) || 70;
-      this.missingMessagesWindow.style.left = xOffset + 'px';
-      this.missingMessagesWindow.style.right = 'auto';
+      yOffset = parseInt(computedStyle.top) || 330;
     }
 
     // Utility function to convert bytes to hex string

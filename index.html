@@ -796,8 +796,9 @@
     createLightNode,
     ReliableChannelEvent,
     ReliableChannel,
-    HealthStatus
-  } from 'https://unpkg.com/@waku/sdk@0.0.35-921b65f.0/bundle/index.js';
+    HealthStatus,
+    WakuEvent
+  } from './waku-sdk-bundle.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -1361,7 +1362,7 @@
       if (!this.node || !this.node.events) return;
 
       // Listen for health status changes
-      this.node.events.addEventListener('waku:health', (event) => {
+      this.node.events.addEventListener(WakuEvent.Health, (event) => {
         this.handleHealthChange(event.detail);
       });
     }

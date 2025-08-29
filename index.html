@@ -829,10 +829,12 @@
       this.nicknameColors = new Map(); // Map nickname to color
       this.messagesByMessageId = new Map(); // Store messages by their ID for replies
       this.replyingTo = null; // Current reply context
+      this.notificationsEnabled = false; // Track if notifications are enabled
 
       this.initProtobuf();
       this.initElements();
       this.initEventListeners();
+      this.requestNotificationPermission();
       this.initWaku();
     }
 
@@ -872,6 +874,70 @@
       const nickname = `${adjective}${noun}${number}`;
       this.saveNickname(nickname);
       return nickname;
+    }
+
+    async requestNotificationPermission() {
+      if (!('Notification' in window)) {
+        console.log('This browser does not support notifications');
+        this.addSystemMessage('Browser notifications not supported');
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        this.notificationsEnabled = true;
+        this.addSystemMessage('Browser notifications enabled');
+        return;
+      }
+
+      if (Notification.permission !== 'denied') {
+        try {
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+            this.notificationsEnabled = true;
+            this.addSystemMessage('Browser notifications enabled');
+          } else {
+            this.addSystemMessage('Browser notifications disabled');
+          }
+        } catch (error) {
+          console.error('Error requesting notification permission:', error);
+          this.addSystemMessage('Failed to request notification permission');
+        }
+      } else {
+        this.addSystemMessage('Browser notifications blocked');
+      }
+    }
+
+    createNotification(sender, text, isReply = false) {
+      if (!this.notificationsEnabled || sender === this.nickname) {
+        return; // Don't show notifications for our own messages
+      }
+
+      try {
+        const title = isReply ? `${sender} replied in RetroChat` : `${sender} in RetroChat`;
+        const body = text.length > 100 ? text.substring(0, 100) + '...' : text;
+        
+        const notification = new Notification(title, {
+          body: body,
+          tag: 'retro-chat-message',
+          requireInteraction: false,
+          silent: false
+        });
+
+        // Auto-close notification after 5 seconds
+        setTimeout(() => {
+          notification.close();
+        }, 5000);
+
+        // Focus window when notification is clicked
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+
+      } catch (error) {
+        console.error('Error creating notification:', error);
+        console.error('Error details:', error.message);
+      }
     }
 
     initProtobuf() {
@@ -1584,6 +1650,10 @@
 
         // Add the message to chat
         this.addChatMessage(message);
+
+        // Create notification for the new message
+        const isReply = !!message.replyToMessageId;
+        this.createNotification(message.sender, message.text, isReply);
 
       } catch (error) {
         console.error('Failed to process incoming message:', error);

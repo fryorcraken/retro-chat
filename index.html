@@ -119,6 +119,36 @@
       cursor: not-allowed;
     }
 
+    .hide-windows-button {
+      background: #003300;
+      border: 1px solid #00ff00;
+      color: #00ff00;
+      padding: 5px 8px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 3px;
+      margin-left: 5px;
+    }
+
+    .hide-windows-button:hover {
+      background: #00ff00;
+      color: #000;
+      box-shadow: 0 0 5px #00ff00;
+    }
+
+    .hide-windows-button.hidden {
+      background: #330000;
+      border-color: #ff6600;
+      color: #ff9900;
+    }
+
+    .system-window.hidden,
+    .missing-messages-window.hidden {
+      display: none !important;
+    }
+
     .status-group {
       display: flex;
       flex-direction: column;
@@ -269,6 +299,12 @@
       .notification-button {
         padding: 3px 6px;
         font-size: 12px;
+      }
+
+      .hide-windows-button {
+        padding: 3px 6px;
+        font-size: 12px;
+        margin-left: 3px;
       }
 
       .status-group {
@@ -913,6 +949,7 @@
   <div class="user-info">
     <input type="text" class="nickname-input" placeholder="Enter nickname..." value="">
     <button class="notification-button" id="notificationButton" title="Enable notifications">🔔</button>
+    <button class="hide-windows-button" id="hideWindowsButton" title="Hide/show system windows">SYS</button>
     <div class="status-group">
       <span class="status connecting" id="status">
         Connecting...
@@ -1024,6 +1061,49 @@
       }
     }
 
+    loadWindowsVisibility() {
+      try {
+        const isHidden = localStorage.getItem('retro-chat-windows-hidden') === 'true';
+        if (isHidden) {
+          this.systemWindow.classList.add('hidden');
+          this.missingMessagesWindow.classList.add('hidden');
+          this.hideWindowsButton.classList.add('hidden');
+          this.hideWindowsButton.textContent = '---';
+          this.hideWindowsButton.title = 'Show system windows';
+        } else {
+          this.hideWindowsButton.textContent = 'SYS';
+          this.hideWindowsButton.title = 'Hide system windows';
+        }
+      } catch (error) {
+        console.warn('Could not load windows visibility from localStorage:', error);
+      }
+    }
+
+    toggleWindowsVisibility() {
+      try {
+        const isHidden = this.systemWindow.classList.contains('hidden');
+        if (isHidden) {
+          // Show windows
+          this.systemWindow.classList.remove('hidden');
+          this.missingMessagesWindow.classList.remove('hidden');
+          this.hideWindowsButton.classList.remove('hidden');
+          this.hideWindowsButton.textContent = 'SYS';
+          this.hideWindowsButton.title = 'Hide system windows';
+          localStorage.setItem('retro-chat-windows-hidden', 'false');
+        } else {
+          // Hide windows
+          this.systemWindow.classList.add('hidden');
+          this.missingMessagesWindow.classList.add('hidden');
+          this.hideWindowsButton.classList.add('hidden');
+          this.hideWindowsButton.textContent = '---';
+          this.hideWindowsButton.title = 'Show system windows';
+          localStorage.setItem('retro-chat-windows-hidden', 'true');
+        }
+      } catch (error) {
+        console.warn('Could not toggle windows visibility:', error);
+      }
+    }
+
     generateRandomNickname() {
       const adjectives = [
         'Cyber', 'Neon', 'Retro', 'Pixel', 'Code', 'Data', 'Hack', 'Tech',
@@ -1058,6 +1138,11 @@
       // Add click handler for notification button
       this.notificationButton.addEventListener('click', () => {
         this.requestNotificationPermission();
+      });
+
+      // Add click handler for hide windows button
+      this.hideWindowsButton.addEventListener('click', () => {
+        this.toggleWindowsVisibility();
       });
 
       // Check if we're in a PWA context
@@ -1298,6 +1383,12 @@
 
       // Notification button element
       this.notificationButton = document.getElementById('notificationButton');
+
+      // Hide windows button element
+      this.hideWindowsButton = document.getElementById('hideWindowsButton');
+
+      // Load and apply windows visibility state
+      this.loadWindowsVisibility();
 
       // Set the generated nickname in the input field
       this.nicknameInput.value = this.nickname;

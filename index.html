@@ -4,6 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RetroChat - IRC Style</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#00ff00">
+  <meta name="background-color" content="#000000">
+  <meta name="display" content="standalone">
+  <meta name="orientation" content="portrait-primary">
+  
+  <!-- Apple PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RetroChat">
+  
+  <!-- Microsoft PWA Meta Tags -->
+  <meta name="msapplication-TileColor" content="#000000">
+  <meta name="msapplication-tap-highlight" content="no">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono:wght@400&display=swap');
 
@@ -1989,6 +2007,17 @@
   // Initialize the chat application
   window.addEventListener('DOMContentLoaded', () => {
     new RetroIRC();
+    
+    // Register service worker for PWA functionality
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('Service Worker registered successfully:', registration);
+        })
+        .catch((error) => {
+          console.log('Service Worker registration failed:', error);
+        });
+    }
   });
 </script>
 </body>

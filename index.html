@@ -185,15 +185,60 @@
       .reply-indicator {
         bottom: calc(80px + env(safe-area-inset-bottom, 0px));
         padding: 6px 15px;
+        margin: 0 10px;
+        border-radius: 4px;
+        left: 0;
+        right: 0;
       }
 
       .reply-indicator-content {
         font-size: 11px;
+        line-height: 1.3;
+        overflow: hidden;
+      }
+
+      .reply-indicator-text {
+        max-width: 180px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+        vertical-align: bottom;
       }
 
       .cancel-reply {
         font-size: 11px;
+        padding: 4px 8px;
+        min-height: 28px;
+        min-width: 28px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+
+      .cancel-reply:active {
+        transform: scale(0.95);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .reply-indicator {
+        margin: 0 5px;
+        padding: 5px 12px;
+      }
+
+      .reply-indicator-content {
+        font-size: 10px;
+      }
+
+      .reply-indicator-text {
+        max-width: 120px;
+      }
+
+      .cancel-reply {
+        font-size: 10px;
         padding: 3px 6px;
+        min-height: 24px;
+        min-width: 24px;
       }
     }
 
@@ -292,21 +337,25 @@
       margin-bottom: 5px;
       line-height: 1.4;
       display: flex;
-      align-items: center;
-      gap: 8px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 3px;
       position: relative;
     }
 
     .message-content {
       flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-right: 50px; /* Leave space for reply button */
     }
 
     .reply-button {
       display: none;
       position: absolute;
-      right: 40px;
-      top: 50%;
-      transform: translateY(-50%);
+      right: 10px;
+      bottom: 8px;
       color: #00ff00;
       opacity: 0.6;
       cursor: pointer;
@@ -315,6 +364,7 @@
       border: 1px solid transparent;
       background: rgba(0, 17, 0, 0.8);
       transition: opacity 0.2s, border-color 0.2s;
+      border-radius: 3px;
     }
 
     .message:hover .reply-button {
@@ -330,9 +380,30 @@
     @media (max-width: 768px) {
       .reply-button {
         display: block;
-        opacity: 0.4;
+        opacity: 0.6;
         font-size: 10px;
-        right: 20px;
+        right: 15px;
+        padding: 4px 6px;
+        min-height: 24px;
+        min-width: 40px;
+        background: rgba(0, 17, 0, 0.9);
+        border-radius: 3px;
+      }
+
+      .reply-button:active {
+        opacity: 1;
+        background: rgba(0, 255, 0, 0.2);
+        transform: scale(0.95);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .reply-button {
+        font-size: 9px;
+        right: 10px;
+        padding: 3px 5px;
+        min-height: 22px;
+        min-width: 35px;
       }
     }
 
@@ -364,6 +435,48 @@
       text-overflow: ellipsis;
       display: inline-block;
       vertical-align: bottom;
+    }
+
+    /* Mobile reply preview improvements */
+    @media (max-width: 768px) {
+      .reply-preview {
+        margin-bottom: 5px;
+        padding-left: 8px;
+        display: block;
+        width: 100%;
+      }
+
+      .reply-preview .reply-text {
+        max-width: calc(100vw - 100px);
+        font-size: 11px;
+        display: block;
+        margin-top: 2px;
+      }
+
+      .reply-preview .reply-nick {
+        font-size: 11px;
+        display: inline-block;
+      }
+
+      /* Mobile-specific adjustments */
+      .message-content {
+        padding-right: 45px; /* Slightly less space needed on mobile */
+      }
+    }
+
+    @media (max-width: 480px) {
+      .reply-preview .reply-text {
+        max-width: calc(100vw - 80px);
+        font-size: 10px;
+      }
+
+      .reply-preview .reply-nick {
+        font-size: 10px;
+      }
+
+      .message-content {
+        padding-right: 35px; /* Less space needed on very small screens */
+      }
     }
 
     .message.highlight {

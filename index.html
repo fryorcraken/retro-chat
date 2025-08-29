@@ -88,6 +88,37 @@
       box-shadow: 0 0 5px #00ff00;
     }
 
+    .notification-button {
+      background: #003300;
+      border: 1px solid #00ff00;
+      color: #00ff00;
+      padding: 5px 8px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 3px;
+    }
+
+    .notification-button:hover {
+      background: #00ff00;
+      color: #000;
+      box-shadow: 0 0 5px #00ff00;
+    }
+
+    .notification-button.enabled {
+      background: #00ff00;
+      color: #000;
+    }
+
+    .notification-button.disabled {
+      background: #660000;
+      border-color: #ff0000;
+      color: #ff6666;
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
     .status-group {
       display: flex;
       flex-direction: column;
@@ -188,6 +219,11 @@
         width: 80px;
         padding: 3px 6px;
         font-size: 11px;
+      }
+
+      .notification-button {
+        padding: 3px 6px;
+        font-size: 12px;
       }
 
       .status-group {
@@ -763,6 +799,7 @@
   <div class="title">RetroChat</div>
   <div class="user-info">
     <input type="text" class="nickname-input" placeholder="Enter nickname..." value="">
+    <button class="notification-button" id="notificationButton" title="Enable notifications">🔔</button>
     <div class="status-group">
       <span class="status connecting" id="status">
         Connecting...
@@ -852,7 +889,7 @@
       this.initProtobuf();
       this.initElements();
       this.initEventListeners();
-      this.requestNotificationPermission();
+      this.initNotificationButton();
       this.initWaku();
     }
 
@@ -894,34 +931,139 @@
       return nickname;
     }
 
-    async requestNotificationPermission() {
+    initNotificationButton() {
       if (!('Notification' in window)) {
         console.log('This browser does not support notifications');
+        this.notificationButton.style.display = 'none';
         this.addSystemMessage('Browser notifications not supported');
         return;
       }
 
-      if (Notification.permission === 'granted') {
+      // Set initial button state
+      this.updateNotificationButtonState();
+
+      // Add click handler for notification button
+      this.notificationButton.addEventListener('click', () => {
+        this.requestNotificationPermission();
+      });
+
+      // Check if we're in a PWA context
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                    window.navigator.standalone === true;
+      
+      if (isPWA) {
+        this.addSystemMessage('Running in PWA mode - notifications should work better');
+      } else {
+        this.addSystemMessage('For best notification support on mobile, add this app to your home screen');
+      }
+    }
+
+    updateNotificationButtonState() {
+      const permission = Notification.permission;
+      
+      if (permission === 'granted') {
+        this.notificationButton.className = 'notification-button enabled';
+        this.notificationButton.title = 'Notifications enabled';
+        this.notificationButton.textContent = '🔔';
         this.notificationsEnabled = true;
-        this.addSystemMessage('Browser notifications enabled');
+      } else if (permission === 'denied') {
+        this.notificationButton.className = 'notification-button disabled';
+        this.notificationButton.title = 'Notifications blocked - enable in browser settings';
+        this.notificationButton.textContent = '🔕';
+        this.notificationsEnabled = false;
+      } else if (permission === 'default') {
+        this.notificationButton.className = 'notification-button';
+        this.notificationButton.title = 'Click to request notification permission';
+        this.notificationButton.textContent = '🔔';
+        this.notificationsEnabled = false;
+      } else {
+        this.notificationButton.className = 'notification-button';
+        this.notificationButton.title = `Unknown permission state: ${permission}`;
+        this.notificationButton.textContent = '🔔';
+        this.notificationsEnabled = false;
+      }
+      
+      // Log state for debugging
+      console.log('Button state updated:', permission, this.notificationsEnabled);
+    }
+
+    async requestNotificationPermission() {
+      if (!('Notification' in window)) {
+        this.addSystemMessage('Browser notifications not supported');
         return;
       }
 
-      if (Notification.permission !== 'denied') {
+      // Log current permission state for debugging
+      console.log('Current notification permission:', Notification.permission);
+      this.addSystemMessage(`Current permission state: ${Notification.permission}`);
+
+      // If already granted, just update state
+      if (Notification.permission === 'granted') {
+        this.notificationsEnabled = true;
+        this.updateNotificationButtonState();
+        this.addSystemMessage('Notifications are already enabled');
+        return;
+      }
+
+      // If denied, show instruction message
+      if (Notification.permission === 'denied') {
+        this.addSystemMessage('Notifications are blocked. Please enable them in your browser settings and reload the page.');
+        return;
+      }
+
+      // For 'default' state (ask to allow), request permission
+      if (Notification.permission === 'default') {
+        this.addSystemMessage('Requesting notification permission...');
+        
+        // Request permission (this must be user-initiated)
         try {
-          const permission = await Notification.requestPermission();
+          let permission;
+          
+          // Try different methods for different browsers
+          if (Notification.requestPermission.length === 0) {
+            // Modern Promise-based API
+            permission = await Notification.requestPermission();
+          } else {
+            // Older callback-based API (fallback for some mobile browsers)
+            permission = await new Promise((resolve) => {
+              Notification.requestPermission(resolve);
+            });
+          }
+          
+          console.log('Permission result:', permission);
+          this.addSystemMessage(`Permission result: ${permission}`);
+          
           if (permission === 'granted') {
             this.notificationsEnabled = true;
-            this.addSystemMessage('Browser notifications enabled');
+            this.addSystemMessage('Notifications enabled successfully!');
+            
+            // Test notification
+            setTimeout(() => {
+              this.createNotification('System', 'Notifications are now working!', false);
+            }, 1000);
+          } else if (permission === 'denied') {
+            this.addSystemMessage('Notification permission denied by user');
           } else {
-            this.addSystemMessage('Browser notifications disabled');
+            this.addSystemMessage('Notification permission not granted (unknown state)');
           }
+          
+          this.updateNotificationButtonState();
+          
         } catch (error) {
           console.error('Error requesting notification permission:', error);
-          this.addSystemMessage('Failed to request notification permission');
+          this.addSystemMessage(`Permission request failed: ${error.message}`);
+          
+          // For mobile browsers that don't support requestPermission()
+          if (error.name === 'NotAllowedError') {
+            this.addSystemMessage('NotAllowedError - Permission blocked by browser policy');
+          } else if (error.message.includes('user gesture')) {
+            this.addSystemMessage('User gesture required - try clicking the button again');
+          } else {
+            this.addSystemMessage('This may be due to browser restrictions on mobile - try adding to home screen');
+          }
         }
       } else {
-        this.addSystemMessage('Browser notifications blocked');
+        this.addSystemMessage(`Unexpected permission state: ${Notification.permission}`);
       }
     }
 
@@ -930,31 +1072,85 @@
         return; // Don't show notifications for our own messages
       }
 
+      // Double-check permission before creating notification
+      if (Notification.permission !== 'granted') {
+        console.log('Notification permission not granted, skipping notification');
+        return;
+      }
+
       try {
         const title = isReply ? `${sender} replied in RetroChat` : `${sender} in RetroChat`;
         const body = text.length > 100 ? text.substring(0, 100) + '...' : text;
         
-        const notification = new Notification(title, {
+        // Enhanced notification options for better mobile support
+        const options = {
           body: body,
           tag: 'retro-chat-message',
+          icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgdmlld0JveD0iMCAwIDk2IDk2Ij4KICA8cmVjdCB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIGZpbGw9IiMwMDAiLz4KICA8dGV4dCB4PSI0OCIgeT0iNTgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiMwMGZmMDAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMzIiIGZvbnQtd2VpZ2h0PSJib2xkIj5SQzwvdGV4dD4KPC9zdmc+',
+          badge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3MiIgaGVpZ2h0PSI3MiIgdmlld0JveD0iMCAwIDcyIDcyIj4KICA8cmVjdCB3aWR0aD0iNzIiIGhlaWdodD0iNzIiIGZpbGw9IiMwMGZmMDAiLz4KICA8dGV4dCB4PSIzNiIgeT0iNDUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiMwMDAiIGZvbnQtZmFtaWx5PSJtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSJib2xkIj5SQzwvdGV4dD4KPC9zdmc+',
           requireInteraction: false,
-          silent: false
-        });
+          silent: false,
+          timestamp: Date.now(),
+          data: {
+            sender: sender,
+            text: text,
+            isReply: isReply,
+            timestamp: Date.now()
+          }
+        };
 
-        // Auto-close notification after 5 seconds
+        const notification = new Notification(title, options);
+
+        // Auto-close notification after 8 seconds (longer for mobile)
         setTimeout(() => {
-          notification.close();
-        }, 5000);
+          try {
+            notification.close();
+          } catch (e) {
+            // Ignore if already closed
+          }
+        }, 8000);
 
         // Focus window when notification is clicked
         notification.onclick = () => {
-          window.focus();
-          notification.close();
+          try {
+            window.focus();
+            notification.close();
+            
+            // Try to bring the window to foreground on mobile
+            if (document.visibilityState === 'hidden') {
+              // App was backgrounded, try to focus
+              document.addEventListener('visibilitychange', function focusOnceVisible() {
+                if (document.visibilityState === 'visible') {
+                  window.focus();
+                  document.removeEventListener('visibilitychange', focusOnceVisible);
+                }
+              }, { once: true });
+            }
+          } catch (e) {
+            console.log('Error handling notification click:', e);
+          }
         };
+
+        // Handle notification error
+        notification.onerror = (error) => {
+          console.error('Notification error:', error);
+          this.addSystemMessage('Notification failed to display');
+        };
+
+        console.log('Notification created successfully');
 
       } catch (error) {
         console.error('Error creating notification:', error);
         console.error('Error details:', error.message);
+        
+        // Provide specific error feedback
+        if (error.name === 'NotAllowedError') {
+          this.addSystemMessage('Notifications blocked by browser');
+        } else if (error.message.includes('ServiceWorker')) {
+          this.addSystemMessage('Notification failed: Service Worker issue');
+        } else {
+          this.addSystemMessage('Notification failed: ' + error.message);
+        }
       }
     }
 
@@ -986,6 +1182,9 @@
       this.replyNick = document.getElementById('replyNick');
       this.replyText = document.getElementById('replyText');
       this.cancelReplyButton = document.getElementById('cancelReply');
+
+      // Notification button element
+      this.notificationButton = document.getElementById('notificationButton');
 
       // Set the generated nickname in the input field
       this.nicknameInput.value = this.nickname;

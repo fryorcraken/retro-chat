@@ -353,6 +353,7 @@
         font-size: 11px;
         min-width: 14px;
         height: 14px;
+        margin-left: 4px;
       }
     }
 
@@ -611,9 +612,11 @@
       font-size: 12px;
       min-width: 16px;
       height: 16px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
+      margin-left: 5px;
+      vertical-align: middle;
     }
 
     .message-status.sending {
@@ -1001,7 +1004,7 @@
     createLightNode,
     ReliableChannel,
     HealthStatus,
-  } from 'https://unpkg.com/@waku/sdk@0.0.35-3e66a33.0/bundle/index.js';
+  } from 'https://unpkg.com/@waku/sdk@0.0.35-4d5c152.0/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -1968,7 +1971,7 @@
         // Encode with protobuf
         const protoMessage = this.Chat2Message.create(message);
         const payload = this.Chat2Message.encode(protoMessage).finish();
-        const messageId = ReliableChannel.getMessageId(payload)
+        const messageId = this.reliableChannel.send(payload);
 
         // Track this message as locally sent
         this.localSentMessages.set(messageId, chatMessageId);
@@ -1996,9 +1999,6 @@
             this.updateMessageStatus(chatMessageId, 'acknowledged');
           }
         })
-
-        // Send the message
-        this.reliableChannel.send(payload);
 
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -2171,9 +2171,9 @@
           <span class="timestamp">[${timestamp}]</span>
           <span class="sender" style="color: ${senderColor};">&lt;${message.sender}&gt;</span>
           <span class="message-text"> ${this.escapeHtml(message.text)}</span>
+          <span class="message-status ${statusClass}">${statusIcon}</span>
         </div>
         <button class="reply-button">[Reply]</button>
-        <div class="message-status ${statusClass}">${statusIcon}</div>
       `;
 
       // Add click handler for reply preview

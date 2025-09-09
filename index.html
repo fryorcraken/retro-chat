@@ -999,11 +999,9 @@
 <script type="module">
   import {
     createLightNode,
-    ReliableChannelEvent,
     ReliableChannel,
     HealthStatus,
-    WakuEvent
-  } from 'https://unpkg.com/@waku/sdk@0.0.35-67a7287.0/bundle/index.js';
+  } from 'https://unpkg.com/@waku/sdk@0.0.35-3e66a33.0/bundle/index.js';
 
   // Define protobuf schema
   const protoSchema = `
@@ -1813,12 +1811,12 @@
         this.updateStatus('Waiting for peers...', 'connecting');
 
         // Subscribe to messages
-        this.reliableChannel.addEventListener(ReliableChannelEvent.InMessageReceived, (event) => {
+        this.reliableChannel.addEventListener("message-received", (event) => {
           this.handleIncomingMessage(event.detail);
         })
 
         // Subscribe to sent events
-        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageSent, (event) => {
+        this.reliableChannel.addEventListener("message-sent", (event) => {
           this.addSystemMessage(`Message sent: ${event.detail.toString().substring(0, 12)}...`);
         })
 
@@ -1849,7 +1847,7 @@
       if (!this.node || !this.node.events) return;
 
       // Listen for health status changes
-      this.node.events.addEventListener(WakuEvent.Health, (event) => {
+      this.node.events.addEventListener("waku:health", (event) => {
         this.handleHealthChange(event.detail);
       });
     }
@@ -1975,14 +1973,14 @@
         // Track this message as locally sent
         this.localSentMessages.set(messageId, chatMessageId);
 
-        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageIrrecoverableError, (event) => {
+        this.reliableChannel.addEventListener("sending-message-irrecoverable-error", (event) => {
           if (messageId === event.detail.messageId) {
             console.error('Failed to send message:', event.detail.error);
             this.addSystemMessage(`Failed to send message: ${event.detail.error}`);
           }
         })
 
-        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageSent, (event) => {
+        this.reliableChannel.addEventListener("message-sent", (event) => {
           if (messageId === event.detail) {
             this.updateMessageStatus(chatMessageId, 'sent');
             // Clear reply after successful send
@@ -1992,7 +1990,7 @@
           }
         })
 
-        this.reliableChannel.addEventListener(ReliableChannelEvent.OutMessageAcknowledged, (event) => {
+        this.reliableChannel.addEventListener("message-acknowledged", (event) => {
           console.log("received ack", event.detail)
           if (messageId === event.detail) {
             this.updateMessageStatus(chatMessageId, 'acknowledged');
